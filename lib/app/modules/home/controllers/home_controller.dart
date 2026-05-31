@@ -1,25 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+// Import halaman HistoryView agar bisa dibaca di dalam list pages
+import 'package:cuaninkasir/app/modules/history/views/history_view.dart';
+
 class HomeController extends GetxController {
   // Mengontrol indeks BottomNavigationBar
   var currentNavIndex = 0.obs;
 
-  // Mengontrol kategori yang sedang aktif
+  // --- ARRAY NAVIGATION PAGES ---
+  // Menampung semua halaman yang terhubung dengan bottom navbar lu
+  final List<Widget> pages = [
+    const Center(child: Text("Menu Catalog Page")), // Index 0: Nanti bisa lu ganti jadi const MenuCatalogView()
+    const Center(child: Text("Active Orders Page")), // Index 1: Nanti bisa lu ganti jadi const ActiveOrdersView()
+    const HistoryView(),                             // Index 2: Halaman History FR-K08 yang sudah kita perbaiki
+  ];
+
+  // Fungsi memindahkan index tab navigasi
+  void changeTab(int index) {
+    currentNavIndex.value = index;
+  }
+
+  // Mengontrol kategori produk yang sedang aktif
   var selectedCategory = 'All'.obs;
 
   // Controller untuk kolom pencarian
   final searchController = TextEditingController();
 
   // --- STATE REAKTIF UNTUK FR-K03 (ORDER MODIFIER) ---
-  var selectedVariant = 'Hot'.obs; // Default 'Hot'
-  var sugarLevel = 0.5.obs;        // Default 50% (Standard)
+  var selectedVariant = 'Hot'.obs;
+  var sugarLevel = 0.5.obs;
   var extraFoamCount = 0.obs;
   var vanillaSyrupCount = 0.obs;
   final notesController = TextEditingController();
-  var currentBasePrice = 21000.obs; // Menampung harga dasar menu yang diklik
+  var currentBasePrice = 21000.obs;
 
-  // List data produk mentah (Dummy Data sesuai UI Mockup)
+  // Data Produk Dummy Mockup
   final allProducts = <Map<String, dynamic>>[
     {
       'name': 'Iced Americano',
@@ -59,28 +75,22 @@ class HomeController extends GetxController {
     },
   ].obs;
 
-  // List produk yang sudah difilter berdasarkan pencarian & kategori
   var filteredProducts = <Map<String, dynamic>>[].obs;
 
   @override
   void onInit() {
     super.onInit();
-    // Tampilkan semua produk saat pertama kali halaman dimuat
     filteredProducts.assignAll(allProducts);
-
-    // Dengarkan perubahan pada kolom pencarian
     searchController.addListener(() {
       filterDisplayProducts();
     });
   }
 
-  // Mengubah kategori aktif saat chip diklik
   void changeCategory(String category) {
     selectedCategory.value = category;
     filterDisplayProducts();
   }
 
-  // Fungsi Inti FR-K02: Filter & Search Logic
   void filterDisplayProducts() {
     String query = searchController.text.toLowerCase();
     String category = selectedCategory.value;
@@ -94,9 +104,6 @@ class HomeController extends GetxController {
     filteredProducts.assignAll(tempProducts);
   }
 
-  // --- LOGIC DI DALAM POPUP BOTTOM SHEET (FR-K03) ---
-
-  // Mengubah nilai desimal slider menjadi teks persentase sesuai UI
   String get sugarLevelText {
     if (sugarLevel.value == 0.0) return '0%';
     if (sugarLevel.value == 0.25) return '25%';
@@ -105,23 +112,16 @@ class HomeController extends GetxController {
     return '100%';
   }
 
-  // Menghitung Total Harga secara dinamis dan otomatis (Real-Time)
   int get calculatedTotalPrice {
     int total = currentBasePrice.value;
-
-    // Aturan Bisnis: Jika varian 'Iced' dipilih, harga bertambah Rp 2.000
     if (selectedVariant.value == 'Iced') {
       total += 2000;
     }
-
-    // Kalkulasi harga add-ons (Extra Foam +Rp 5.000, Vanilla Syrup +Rp 8.000)
     total += (extraFoamCount.value * 5000);
     total += (vanillaSyrupCount.value * 8000);
-
     return total;
   }
 
-  // Fungsi untuk mereset seluruh status modifier saat kasir memicu menu baru
   void openOrderModifier(String productName, int basePrice) {
     currentBasePrice.value = basePrice;
     selectedVariant.value = 'Hot';

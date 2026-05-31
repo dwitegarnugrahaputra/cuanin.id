@@ -24,7 +24,7 @@ class LoginController extends GetxController {
     if (email.isEmpty || password.isEmpty) {
       Get.snackbar(
         "Peringatan",
-        "Username/Email dan Password wajib diisi, Gar!",
+        "Username/Email dan Password wajib diisi!",
         snackPosition: SnackPosition.TOP,
         backgroundColor: Colors.amber[700],
         colorText: Colors.white,

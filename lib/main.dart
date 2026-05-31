@@ -8,10 +8,10 @@ void main() async {
   // 1. Wajib dipanggil paling atas untuk memastikan semua binding Flutter siap
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. INISIALISASI SUPABASE (Ini yang kehapus tadi, Gar!)
+  // 2. INISIALISASI SUPABASE
   await Supabase.initialize(
-    url: 'https://qvuvnuhksxofyyzqzdse.supabase.co', // <-- Ganti pake URL Supabase proyek cuanin.id lu
-    anonKey: 'sb_publishable_-3Z2QYcYb8W62LPloGiYVQ_KsvgU0dt', // <-- Ganti pake Anon Key Supabase lu
+    url: 'https://qvuvnuhksxofyyzqzdse.supabase.co', //URL Supabase proyek cuanin.id
+    anonKey: 'sb_publishable_-3Z2QYcYb8W62LPloGiYVQ_KsvgU0dt', // Anon Key Supabase
   );
 
   // 3. INJEKSI GLOBAL STATE KANTONG BELANJA

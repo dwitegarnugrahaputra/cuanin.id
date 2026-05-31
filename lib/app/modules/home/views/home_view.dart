@@ -3,229 +3,336 @@ import 'package:get/get.dart';
 import '../controllers/home_controller.dart';
 import '../../cart/views/cart_view.dart';
 import '../../cart/controllers/cart_controller.dart'; // Akses CartController global
+import '../../history/views/history_view.dart'; // Import Halaman History FR-K08
+import '../../orders/views/orders_view.dart'; // Import Halaman ActiveOrdersView yang valid
 
 class HomeView extends GetView<HomeController> {
   const HomeView({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final List<String> categories = ['All', 'Coffee', 'Non-Coffee', 'Food'];
+    // Inisialisasi HomeController secara lokal mengunci instansinya
+    final HomeController homeController = Get.put(HomeController());
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      // 1. APP BAR UTAMA
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black87),
-          onPressed: () {},
-        ),
-        title: const Text(
-          'Menu Catalog',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 20),
-        ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
-            onPressed: () {
-              Get.to(() => const CartView());
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 2. SEARCH BAR COMPONENT (FR-K02)
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: controller.searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search for coffee or food',
-                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF006847)),
-                  filled: true,
-                  fillColor: const Color(0xFFF1F3F4),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
 
-            // 3. HORIZONTAL CATEGORY CHIPS
-            Container(
-              height: 60,
-              color: Colors.white,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                itemCount: categories.length,
-                itemBuilder: (context, index) {
-                  final cat = categories[index];
-                  return Obx(() {
-                    bool isSelected = controller.selectedCategory.value == cat;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: GestureDetector(
-                        onTap: () => controller.changeCategory(cat),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF006847) : const Color(0xFFEFEFEF),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Center(
-                            child: Text(
-                              cat,
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black87,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  });
+      // 1. APP BAR UTAMA MANAGEMENT (Menghilangkan Double AppBar di Index 1 & 2)
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: Obx(() {
+          // FIX SAKTI: Jika masuk ke halaman Active Orders (index 1) atau History (index 2),
+          // AppBar utama HomeView dikosongkan agar AppBar bawaan halaman masing-masing yang tampil.
+          if (homeController.currentNavIndex.value == 1 || homeController.currentNavIndex.value == 2) {
+            return const SizedBox.shrink();
+          }
+
+          // AppBar default ini hanya akan muncul khusus di halaman index 0 (Katalog Menu)
+          return AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.black87),
+                onPressed: () {
+                  Scaffold.of(context).openDrawer(); // Buka drawer samping
                 },
               ),
             ),
-
-            // 4. GRID VIEW PRODUCT CATALOG (FR-K02)
-            Expanded(
-              child: Obx(() {
-                if (controller.filteredProducts.isEmpty) {
-                  return const Center(
-                    child: Text('Menu tidak ditemukan, Gar.', style: TextStyle(color: Colors.grey)),
-                  );
-                }
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.75,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                  ),
-                  itemCount: controller.filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = controller.filteredProducts[index];
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFEAEAEA)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F3F4),
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                                image: DecorationImage(
-                                  image: NetworkImage(product['image']),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  product['name'],
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Rp ${product['price'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF006847),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () {
-                                        controller.openOrderModifier(product['name'], product['price']);
-                                        Get.bottomSheet(
-                                          _buildOrderModifierSheet(context, product['name'], product['image']),
-                                          isScrollControlled: true,
-                                          backgroundColor: Colors.white,
-                                          shape: const RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                                          ),
-                                        );
-                                      },
-                                      child: const Icon(
-                                        Icons.add_circle_outline_rounded,
-                                        color: Color(0xFF006847),
-                                        size: 24,
-                                      ),
-                                    )
-                                  ],
-                                ),
-                              ],
-                            ),
-                          )
-                        ],
-                      ),
-                    );
-                  },
-                );
-              }),
+            title: const Text(
+              'Menu Catalog',
+              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 20),
             ),
+            centerTitle: false,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
+                onPressed: () {
+                  Get.to(() => const CartView());
+                },
+              ),
+            ],
+          );
+        }),
+      ),
+
+      // 2. HAMBURGER MENU SYSTEM (DRAWER UTAMA)
+      drawer: Drawer(
+        child: Column(
+          children: [
+            UserAccountsDrawerHeader(
+              decoration: const BoxDecoration(
+                color: Color(0xFF006847), // Hijau Cuanin
+              ),
+              currentAccountPicture: const CircleAvatar(
+                backgroundColor: Colors.white,
+                child: Icon(Icons.person, color: Color(0xFF006847), size: 40),
+              ),
+              accountName: const Text(
+                'Kasir Active',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              accountEmail: const Text('kasir@cuanin.id'),
+            ),
+
+            // Item Menu 1: Katalog Menu
+            Obx(() => ListTile(
+              leading: Icon(
+                  Icons.local_cafe_rounded,
+                  color: homeController.currentNavIndex.value == 0 ? const Color(0xFF006847) : Colors.grey
+              ),
+              title: const Text('Menu Catalog', style: TextStyle(fontWeight: FontWeight.bold)),
+              selected: homeController.currentNavIndex.value == 0,
+              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              onTap: () {
+                homeController.changeTab(0);
+                Get.back(); // Tutup drawer
+              },
+            )),
+
+            // Item Menu 2: Orders Aktif
+            Obx(() => ListTile(
+              leading: Icon(
+                  Icons.assignment_rounded,
+                  color: homeController.currentNavIndex.value == 1 ? const Color(0xFF006847) : Colors.grey
+              ),
+              title: const Text('Active Orders', style: TextStyle(fontWeight: FontWeight.bold)),
+              selected: homeController.currentNavIndex.value == 1,
+              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              onTap: () {
+                homeController.changeTab(1);
+                Get.back();
+              },
+            )),
+
+            // Item Menu 3: History Transaksi
+            Obx(() => ListTile(
+              leading: Icon(
+                  Icons.history_rounded,
+                  color: homeController.currentNavIndex.value == 2 ? const Color(0xFF006847) : Colors.grey
+              ),
+              title: const Text('Order History', style: TextStyle(fontWeight: FontWeight.bold)),
+              selected: homeController.currentNavIndex.value == 2,
+              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              onTap: () {
+                homeController.changeTab(2);
+                Get.back();
+              },
+            )),
+
+            const Spacer(),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.red),
+              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              onTap: () {
+                Get.back();
+              },
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
 
-      // 5. FLOATING ACTION BUTTON (QUICK CART ACCESS)
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Get.to(() => const CartView());
-        },
-        backgroundColor: const Color(0xFF006847),
-        shape: const CircleBorder(),
-        elevation: 4,
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
-      ),
+      // 3. REAKTIF BODY SYSTEM
+      body: Obx(() {
+        switch (homeController.currentNavIndex.value) {
+          case 0:
+            return _buildMenuCatalog(context);
+          case 1:
+            return const ActiveOrdersView(); // Memanggil class view pesanan lu
+          case 2:
+            return const HistoryView();
+          default:
+            return const Center(child: Text('Page Not Found'));
+        }
+      }),
 
-      // 6. BOTTOM NAVIGATION BAR SYSTEM
-      bottomNavigationBar: Obx(() => BottomNavigationBar(
-        currentIndex: controller.currentNavIndex.value,
-        onTap: (index) => controller.currentNavIndex.value = index,
-        selectedItemColor: const Color(0xFF006847),
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.local_cafe_rounded), label: 'Menu'),
-          BottomNavigationBarItem(icon: Icon(Icons.assignment_rounded), label: 'Orders'),
-          BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'History'),
-        ],
-      )),
+      // 4. FLOATING ACTION BUTTON (QUICK CART ACCESS)
+      floatingActionButton: Obx(() {
+        return homeController.currentNavIndex.value == 0
+            ? FloatingActionButton(
+          onPressed: () {
+            Get.to(() => const CartView());
+          },
+          backgroundColor: const Color(0xFF006847),
+          shape: const CircleBorder(),
+          elevation: 4,
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+        )
+            : const SizedBox.shrink();
+      }),
     );
   }
 
-  // --- LAYOUT KOMPONEN POPUP BOTTOM SHEET MODIFIER (FR-K03 & FR-K04 INTEGRATION) ---
+  // --- WIDGET INTERNAL: KONTEN UTAMA KATALOG MENU ---
+  Widget _buildMenuCatalog(BuildContext context) {
+    final List<String> categories = ['All', 'Coffee', 'Non-Coffee', 'Food'];
+
+    return SafeArea(
+      child: Column(
+        children: [
+          // SEARCH BAR COMPONENT (FR-K02)
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: controller.searchController,
+              decoration: InputDecoration(
+                hintText: 'Search for coffee or food',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF006847)),
+                filled: true,
+                fillColor: const Color(0xFFF1F3F4),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+
+          // HORIZONTAL CATEGORY CHIPS
+          Container(
+            height: 60,
+            color: Colors.white,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              itemCount: categories.length,
+              itemBuilder: (context, index) {
+                final cat = categories[index];
+                return Obx(() {
+                  bool isSelected = controller.selectedCategory.value == cat;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: GestureDetector(
+                      onTap: () => controller.changeCategory(cat),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF006847) : const Color(0xFFEFEFEF),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Center(
+                          child: Text(
+                            cat,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                });
+              },
+            ),
+          ),
+
+          // GRID VIEW PRODUCT CATALOG (FR-K02)
+          Expanded(
+            child: Obx(() {
+              if (controller.filteredProducts.isEmpty) {
+                return const Center(
+                  child: Text('Menu tidak ditemukan, Gar.', style: TextStyle(color: Colors.grey)),
+                );
+              }
+              return GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.75,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                ),
+                itemCount: controller.filteredProducts.length,
+                itemBuilder: (context, index) {
+                  final product = controller.filteredProducts[index];
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFEAEAEA)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F3F4),
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                              image: DecorationImage(
+                                image: NetworkImage(product['image']),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product['name'],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Rp ${product['price'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF006847),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      controller.openOrderModifier(product['name'], product['price']);
+                                      Get.bottomSheet(
+                                        _buildOrderModifierSheet(context, product['name'], product['image']),
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.white,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                        ),
+                                      );
+                                    },
+                                    child: const Icon(
+                                      Icons.add_circle_outline_rounded,
+                                      color: Color(0xFF006847),
+                                      size: 24,
+                                    ),
+                                  )
+                                ],
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- LAYOUT KOMPONEN POPUP BOTTOM SHEET MODIFIER ---
   Widget _buildOrderModifierSheet(BuildContext context, String name, String imageUrl) {
     return Container(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -380,20 +487,14 @@ class HomeView extends GetView<HomeController> {
                           )),
                         ],
                       ),
-
-                      // BUTTON ADD ORDER FIX SAKTI MENGGUNAKAN GET.FIND
                       ElevatedButton(
                         onPressed: () {
-                          // FIX: Menemukan instance CartController global tunggal di memori
                           final cartController = Get.find<CartController>();
-
-                          // Petakan kustomisasi topping
                           List<String> activeAddons = [];
                           if (controller.extraFoamCount.value > 0) activeAddons.add("Extra Foam (x${controller.extraFoamCount.value})");
                           if (controller.vanillaSyrupCount.value > 0) activeAddons.add("Vanilla Syrup (x${controller.vanillaSyrupCount.value})");
                           String addonsText = activeAddons.isEmpty ? "No Add-ons" : activeAddons.join(", ");
 
-                          // Suntikkan data kustomisasi riil ke satu objek keranjang belanja global
                           cartController.addToCart(
                             name: name,
                             variant: controller.selectedVariant.value,
@@ -403,7 +504,6 @@ class HomeView extends GetView<HomeController> {
                             image: imageUrl,
                           );
 
-                          // Tutup popup sheet modifier
                           Get.back();
                           Get.snackbar(
                             'Berhasil',
