@@ -1,51 +1,44 @@
 # cuanin.id 🚀
 > **AI-Integrated POS (Point of Sale) System for Modern Cafes & Retail**
 
-cuanin.id adalah platform kasir digital (Point of Sale) berbasis mobile yang dirancang khusus untuk memenuhi kebutuhan operasional kafe modern. Dengan mengutamakan efisiensi, aplikasi ini mengintegrasikan fitur manajemen inventori cerdas, kustomisasi pesanan yang fleksibel, serta monitor keamanan transaksi untuk meminimalisir tindakan fraud.
+cuanin.id adalah platform kasir digital (Point of Sale) berbasis mobile yang dirancang khusus untuk memenuhi kebutuhan operasional kafe modern. Proyek ini mengimplementasikan manajemen state reaktif GetX dengan pembagian modul berbasis Clean Architecture.
 
 ---
 
-## 🛠️ Tech Stack & Architecture
-* **Framework:** Flutter (Dart)
-* **State Management:** GetX (Reactive State Management & Dependency Injection)
-* **Navigation & Routing:** GetX Routing System (Clean Architecture per Module)
-* **Design Pattern:** MVC (Model-View-Controller) / Module-based approach via GetX CLI
+## 📱 Timeline SRS Cashier - Progress Tracking (Mei - Juni 2026)
 
----
+Berikut adalah ringkasan pemenuhan fungsional (*Functional Requirement*) untuk peran Kasir (*Cashier Mobile Module*) berdasarkan dokumen spesifikasi teknis terbaru:
 
-## 📱 Features & UTS Progress Tracking (FR Status)
-
-Berikut adalah status pemenuhan kebutuhan fungsional (Functional Requirement) sistem *cuanin.id* berdasarkan modul kasir per Mei 2026:
-
-| ID Fitur | Deskripsi Fitur | Status | Detail Implementasi |
+| ID Fitur | Deskripsi Kebutuhan Fungsional | Status Akhir | Catatan / Detail Implementasi |
 | :--- | :--- | :---: | :--- |
-| **FR-K01** | Katalog & Manajemen Menu Utama | **Selesai** | Tampilan GridView interaktif untuk produk kopi, non-kopi, dan makanan. |
-| **FR-K02** | Pencarian Produk Efisien | **Selesai** | Kolom pencarian responsif (*real-time search*) disertai kategori horizontal chips. |
-| **FR-K03** | Kustomisasi Pesanan (Order Modifier) | **Selesai** | Bottom sheet untuk memilih temperatur (Hot/Iced), takaran gula (0%-100%), dan add-ons (Syrup, Foam). |
-| **FR-K04** | Integrasi Keranjang Belanja Global | **Selesai** | Manajemen *state* satu pintu menggunakan `CartController` global dengan akses instan (`Get.find`). |
-| **FR-K08** | Sistem Otentikasi Alasan Pembatalan Transaksi | **Dalam Proses** | UI *Front-End* & Lembar konfirmasi alasan (*Preset & Custom Chips*) selesai. Sinkronisasi *real-time* ke backend owner menunggu pengerjaan role owner. |
-| **FR-K09** | Input Pengeluaran Mendadak Harian | **Belum Dimulai**| Fitur pencatatan dana tak terduga (misal: pembelian galon, gas) langsung dari aplikasi kasir. |
+| **FR-K01** | Login/Logout menggunakan kredensial (Username/Password) validasi role kasir. | **Selesai** | Mengarah langsung ke Dashboard Utama/Katalog Menu. |
+| **FR-K02** | Daftar menu format GridView dan fitur pencarian taktis. | **Selesai** | Dilengkapi horizontal chips kategori (*All, Coffee, Non-Coffee, Food*). |
+| **FR-K03** | Kustomisasi Pesanan (*Order Modifier*). | **Selesai** | Pilihan temperatur, takaran gula (0%-100%), and *add-ons* (Syrup, Foam) via Bottom Sheet. |
+| **FR-K04** | Simpan pesanan belum dibayar sebagai *Draft* penahan antrean. | **Selesai** | State aman terkendali untuk mengantisipasi antrean saat *rush hour*. |
+| **FR-K05** | Mendukung berbagai metode pembayaran (Tunai, QRIS/Transfer). | **Dalam Proses** | Pengembangan fitur *payment gateway* integrasi & halaman admin cash. |
+| **FR-K06** | Kirim transaksi ke DB (Supabase) dan potong stok otomatis berdasarkan resep. | **Dalam Proses** | Memerlukan Modul Data Resep dari Owner dan Manajemen Stok dari Admin Stock. |
+| **FR-K07** | Cetak struk digital / kirim ke Bluetooth Thermal Printer. | **Dalam Peninjauan** | Tidak ada hardware fisik untuk praktik, dependensi `blue_thermal_printer` siap dikonfigurasi. |
+| **FR-K08** | Sistem otentikasi input Alasan Pembatalan Transaksi (*Fraud Monitor*). | **Dalam Proses** | UI lokal lembar alasan pembatalan selesai. Menunggu jalur notifikasi *real-time* ke sisi Owner. |
+| **FR-K09** | Input biaya pengeluaran mendadak harian kasir langsung di Mobile. | **Dalam Proses** | Halaman khusus **Expense** selesai (Input deskripsi & nominal reaktif tanpa kategori). |
+| **FR-K10** | Ringkasan penjualan, total transaksi, & uang masuk per *shift* sebelum *handover*. | **Dalam Proses** | Halaman khusus **Laporan Shift** selesai (Metrik Uang Masuk, Rincian Kas Laci, Efisiensi & Selisih Kas). |
 
 ---
 
-## 🔄 UI/UX Navigation Update: Hamburger Menu (Drawer)
-Aplikasi ini telah dimodernisasi dari sistem navigasi bawah (*Bottom Navigation Bar*) beralih ke sistem **Hamburger Menu (Drawer Component)** untuk memaksimalkan ruang pandang layar pada perangkat tablet/mobile kasir.
-Navigasi drawer ini terintegrasi secara reaktif di tiga halaman utama:
-1. **Menu Catalog** (Katalog & Transaksi Masuk)
-2. **Active Orders** (Daftar Antrean Pesanan per Meja)
-3. **Order History** (Riwayat Transaksi & Fitur Pembatalan FR-K08)
+## 🔄 Pembaruan Navigasi Sistem: Hamburger Menu (Drawer Layout)
+Untuk memberikan ruang pandang transaksi yang lebih lega bagi kasir, navigasi bawah sepenuhnya telah digantikan menggunakan **Hamburger Menu (Drawer Component)** yang terpusat mengendalikan 5 modul inti:
+1. **Menu Catalog** (Akses utama FR-K01, FR-K02, FR-K03, FR-K04)
+2. **Active Orders** (Daftar antrean meja aktif kustomisasi kasir)
+3. **Order History** (Log riwayat transaksi penjualan & pemicu pembatalan FR-K08)
+4. **Expense** (Pencatatan dana keluar tak terduga harian kasir FR-K09)
+5. **Laporan Shift** (Metrik penutupan uang laci kasir & serah terima sebelum handover FR-K10)
 
 ---
 
-## 📦 Keunggulan Arsitektur Kode (Clean Code)
-* **Reactive UI (`Obx`):** Menjamin pembaruan tampilan layar secara instan tanpa perlu memicu *rebuild* widget yang tidak perlu.
-* **Double AppBar Fix:** Menggunakan pengelolaan *State-Driven AppBar Visibility* pada `HomeView` sehingga tampilan layar bebas dari komponen bertumpuk saat perpindahan modul halaman.
-* **Global Instance Tracking:** Penggunaan `Get.put(..., permanent: true)` untuk mengunci state navigasi dan keranjang belanja agar tidak terjadi *instance duplication* di memori.
+## 🛠️ Cara Menjalankan Proyek Secara Lokal
+1. Pastikan Flutter SDK terpasang di komputer lu.
+2. Daftarkan dependensi pemformatan waktu terbaru: `flutter pub add intl`
+3. Jalankan perintah `flutter pub get` untuk menyegarkan memori proyek.
+4. Eksekusi program via terminal: `flutter run`
 
 ---
-
-## 🚀 How to Run the Project Locally
-
-1. **Clone Repository:**
-```bash
-   git clone [https://github.com/dwitegarnugrahaputra/cuanin.id.git](https://github.com/dwitegarnugrahaputra/cuanin.id.git)
+© 2026 cuanin.id Development Team. Seluruh hak cipta modul kasir dilindungi.
