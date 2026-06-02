@@ -10,6 +10,8 @@ abstract class Routes {
   static const SUCCESS = _Paths.SUCCESS;
   static const HISTORY = _Paths.HISTORY;
   static const ORDERS = _Paths.ORDERS;
+  static const EXPENSES = _Paths.EXPENSES;
+  static const SHIFT = _Paths.SHIFT;
 }
 
 abstract class _Paths {
@@ -21,4 +23,6 @@ abstract class _Paths {
   static const SUCCESS = '/success';
   static const HISTORY = '/history';
   static const ORDERS = '/orders';
+  static const EXPENSES = '/expenses';
+  static const SHIFT = '/shift';
 }

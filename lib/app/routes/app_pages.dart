@@ -2,6 +2,8 @@ import 'package:get/get.dart';
 
 import '../modules/cart/bindings/cart_binding.dart';
 import '../modules/cart/views/cart_view.dart';
+import '../modules/expenses/bindings/expenses_binding.dart';
+import '../modules/expenses/views/expenses_view.dart';
 import '../modules/history/bindings/history_binding.dart';
 import '../modules/history/views/history_view.dart';
 import '../modules/home/bindings/home_binding.dart';
@@ -12,6 +14,8 @@ import '../modules/orders/bindings/orders_binding.dart';
 import '../modules/orders/views/orders_view.dart';
 import '../modules/payment/bindings/payment_binding.dart';
 import '../modules/payment/views/payment_view.dart';
+import '../modules/shift/bindings/shift_binding.dart';
+import '../modules/shift/views/shift_view.dart';
 import '../modules/success/bindings/success_binding.dart';
 import '../modules/success/views/success_view.dart';
 
@@ -57,6 +61,16 @@ class AppPages {
       name: _Paths.ORDERS,
       page: () => const ActiveOrdersView(), // <-- Ubah ke nama Class baru kita
       binding: OrdersBinding(),
+    ),
+    GetPage(
+      name: _Paths.EXPENSES,
+      page: () => const ExpensesView(),
+      binding: ExpensesBinding(),
+    ),
+    GetPage(
+      name: _Paths.SHIFT,
+      page: () => const ShiftView(),
+      binding: ShiftBinding(),
     ),
   ];
 }
