@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
 
+import '../modules/admin_dashboard/bindings/admin_dashboard_binding.dart';
+import '../modules/admin_dashboard/views/admin_dashboard_view.dart';
 import '../modules/cart/bindings/cart_binding.dart';
 import '../modules/cart/views/cart_view.dart';
 import '../modules/expenses/bindings/expenses_binding.dart';
@@ -71,6 +73,11 @@ class AppPages {
       name: _Paths.SHIFT,
       page: () => const ShiftView(),
       binding: ShiftBinding(),
+    ),
+    GetPage(
+      name: _Paths.ADMIN_DASHBOARD,
+      page: () => const AdminDashboardView(),
+      binding: AdminDashboardBinding(),
     ),
   ];
 }
