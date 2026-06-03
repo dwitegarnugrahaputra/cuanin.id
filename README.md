@@ -1,44 +1,53 @@
-# cuanin.id 🚀
-> **AI-Integrated POS (Point of Sale) System for Modern Cafes & Retail**
+# cuanin.id - AI-Integrated POS System 🚀
 
-cuanin.id adalah platform kasir digital (Point of Sale) berbasis mobile yang dirancang khusus untuk memenuhi kebutuhan operasional kafe modern. Proyek ini mengimplementasikan manajemen state reaktif GetX dengan pembagian modul berbasis Clean Architecture.
-
----
-
-## 📱 Timeline SRS Cashier - Progress Tracking (Mei - Juni 2026)
-
-Berikut adalah ringkasan pemenuhan fungsional (*Functional Requirement*) untuk peran Kasir (*Cashier Mobile Module*) berdasarkan dokumen spesifikasi teknis terbaru:
-
-| ID Fitur | Deskripsi Kebutuhan Fungsional | Status Akhir | Catatan / Detail Implementasi |
-| :--- | :--- | :---: | :--- |
-| **FR-K01** | Login/Logout menggunakan kredensial (Username/Password) validasi role kasir. | **Selesai** | Mengarah langsung ke Dashboard Utama/Katalog Menu. |
-| **FR-K02** | Daftar menu format GridView dan fitur pencarian taktis. | **Selesai** | Dilengkapi horizontal chips kategori (*All, Coffee, Non-Coffee, Food*). |
-| **FR-K03** | Kustomisasi Pesanan (*Order Modifier*). | **Selesai** | Pilihan temperatur, takaran gula (0%-100%), and *add-ons* (Syrup, Foam) via Bottom Sheet. |
-| **FR-K04** | Simpan pesanan belum dibayar sebagai *Draft* penahan antrean. | **Selesai** | State aman terkendali untuk mengantisipasi antrean saat *rush hour*. |
-| **FR-K05** | Mendukung berbagai metode pembayaran (Tunai, QRIS/Transfer). | **Dalam Proses** | Pengembangan fitur *payment gateway* integrasi & halaman admin cash. |
-| **FR-K06** | Kirim transaksi ke DB (Supabase) dan potong stok otomatis berdasarkan resep. | **Dalam Proses** | Memerlukan Modul Data Resep dari Owner dan Manajemen Stok dari Admin Stock. |
-| **FR-K07** | Cetak struk digital / kirim ke Bluetooth Thermal Printer. | **Dalam Peninjauan** | Tidak ada hardware fisik untuk praktik, dependensi `blue_thermal_printer` siap dikonfigurasi. |
-| **FR-K08** | Sistem otentikasi input Alasan Pembatalan Transaksi (*Fraud Monitor*). | **Dalam Proses** | UI lokal lembar alasan pembatalan selesai. Menunggu jalur notifikasi *real-time* ke sisi Owner. |
-| **FR-K09** | Input biaya pengeluaran mendadak harian kasir langsung di Mobile. | **Dalam Proses** | Halaman khusus **Expense** selesai (Input deskripsi & nominal reaktif tanpa kategori). |
-| **FR-K10** | Ringkasan penjualan, total transaksi, & uang masuk per *shift* sebelum *handover*. | **Dalam Proses** | Halaman khusus **Laporan Shift** selesai (Metrik Uang Masuk, Rincian Kas Laci, Efisiensi & Selisih Kas). |
+cuanin.id adalah platform Point of Sale (POS) modern berbasis kecerdasan buatan yang dirancang khusus untuk manajemen operasional dan keuangan *coffee shop* skala menengah. Sistem ini menerapkan arsitektur *Role-Based Access Control* (RBAC) yang ketat untuk menjaga keamanan data dan integritas operasional bisnis.
 
 ---
 
-## 🔄 Pembaruan Navigasi Sistem: Hamburger Menu (Drawer Layout)
-Untuk memberikan ruang pandang transaksi yang lebih lega bagi kasir, navigasi bawah sepenuhnya telah digantikan menggunakan **Hamburger Menu (Drawer Component)** yang terpusat mengendalikan 5 modul inti:
-1. **Menu Catalog** (Akses utama FR-K01, FR-K02, FR-K03, FR-K04)
-2. **Active Orders** (Daftar antrean meja aktif kustomisasi kasir)
-3. **Order History** (Log riwayat transaksi penjualan & pemicu pembatalan FR-K08)
-4. **Expense** (Pencatatan dana keluar tak terduga harian kasir FR-K09)
-5. **Laporan Shift** (Metrik penutupan uang laci kasir & serah terima sebelum handover FR-K10)
+## 📌 Status Pengembangan Modul & Fitur (Per Juni 2026)
+
+### 1. 📦 Modul Admin Stok (Gudang & Logistik) - *Mobile App*
+Modul ini diisolasi khusus untuk manajemen fisik logistik dan operasional gudang, terpisah dari hak akses perubahan data master resep demi keamanan bisnis (*separation of duties*).
+
+*   **FR-A01 & FR-A02: Inventory Dashboard** `[SELESAI]`
+    *   Manajemen Autentikasi (Sesi Login/Logout konfirmasi reaktif GetX dialog).
+    *   Ringkasan nilai total inventaris real-time.
+    *   Sistem indikator stok kritis berbasis warna: 🟢 Aman, 🟡 Menipis, 🔴 Habis.
+*   **FR-A03, FR-A04, & FR-A05: AI Scan Nota Supplier** `[DALAM PROSES / FRONT-END READY]`
+    *   Slicing UI antarmuka kamera pemindai nota fisik dan formulir verifikasi manual data OCR.
+    *   Terintegrasi *Mock Timer Simulator* pada GetX Controller untuk penanganan proses *asynchronous*.
+*   **FR-A07: Stock Opname & Waste Management** `[SELESAI]`
+    *   Pencatatan jumlah stok fisik mingguan dan pelaporan bahan rusak/basi.
+    *   Grid 2x2 pilihan alasan penyesuaian (*Adjustment Reason*) reaktif.
+*   **FR-A08: Internal Transfer** `[DALAM PENINJAUAN]`
+    *   Slicing UI mutasi distribusi bahan baku antar gudang utama dan cabang.
+
+### ☕ 2. Modul Kasir (Cashier) - *Mobile App*
+*   **FR-K01 s.d FR-K04: Core Transaction** `[SELESAI]` (Login kasir, Grid View menu per kategori, varian produk, dan simpan draf antrean).
+*   **FR-K05 s.d FR-K10: Payment & Auto-Sync** `[DALAM PROSES]` (Pengembangan payment gateway, integrasi database Supabase, dan mekanisme potong stok otomatis berdasarkan *recipe mapping*).
+
+### 👑 3. Modul Owner Dashboard - *Web App*
+*   **FR-W01 s.d FR-W12: HQ & AI Business Insights** `[BELUM DIMULAI]` (Rencana pengerjaan berikutnya: Manajemen Master Data Menu & Pemetaan Resep, Finansial Analytics, Chatbot AI "Ask My Data" berbasis Gemini Pro, dan Fraud Monitor).
+
+### 🗄️ 4. Infrastruktur Backend Cloud
+*   **Database Cloud:** PostgreSQL via Supabase (Singapore Region) aktif dengan SQL Trigger untuk otomasi pembuatan profil *role*.
+*   **AI & OCR Engine:** Google AI Studio (Gemini Pro API Key) dan Cloud Vision API Project Infrastructure terkonfigurasi aktif.
 
 ---
 
-## 🛠️ Cara Menjalankan Proyek Secara Lokal
-1. Pastikan Flutter SDK terpasang di komputer lu.
-2. Daftarkan dependensi pemformatan waktu terbaru: `flutter pub add intl`
-3. Jalankan perintah `flutter pub get` untuk menyegarkan memori proyek.
-4. Eksekusi program via terminal: `flutter run`
+## 🛠️ Tech Stack & Libraries
+
+*   **Framework:** Flutter (Dart)
+*   **State Management:** GetX (Reactive Architecture via `.obs`)
+*   **Backend as a Service:** Supabase (PostgreSQL Cloud)
+*   **AI Integration:** Google Cloud Vision API & Google AI Studio (Gemini Pro)
 
 ---
-© 2026 cuanin.id Development Team. Seluruh hak cipta modul kasir dilindungi.
+
+## 👨‍💻 Cara Menjalankan Proyek di Lokal
+
+1. Pastikan Flutter SDK sudah terinstal dengan baik di perangkat Anda.
+2. Clone repositori ini ke penyimpanan lokal Anda.
+3. Jalankan perintah berikut di terminal root proyek untuk mengunduh dependencies:
+```bash
+   flutter pub get
