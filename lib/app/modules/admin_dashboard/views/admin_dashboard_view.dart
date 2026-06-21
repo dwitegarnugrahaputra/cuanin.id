@@ -294,6 +294,12 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         ),
         const SizedBox(height: 24),
         Obx(() {
+          if (controller.isLoading.value) {
+            return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Color(0xFF006847))));
+          }
+          if (controller.filteredIngredients.isEmpty) {
+            return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Tidak ada data yang ditemukan.', style: TextStyle(color: Colors.grey))));
+          }
           return ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -355,6 +361,12 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         const Text('SELECT PRODUCT TO REPORT WASTE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF283593), letterSpacing: 0.5)),
         const SizedBox(height: 14),
         Obx(() {
+          if (controller.isLoading.value) {
+            return const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Color(0xFF006847))));
+          }
+          if (controller.filteredWasteIngredients.isEmpty) {
+            return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('Tidak ada data yang ditemukan.', style: TextStyle(color: Colors.grey))));
+          }
           return ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

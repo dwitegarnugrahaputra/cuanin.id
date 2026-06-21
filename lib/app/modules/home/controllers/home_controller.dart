@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Import halaman HistoryView agar bisa dibaca di dalam list pages
 import 'package:cuaninkasir/app/modules/history/views/history_view.dart';
@@ -35,55 +36,43 @@ class HomeController extends GetxController {
   final notesController = TextEditingController();
   var currentBasePrice = 21000.obs;
 
-  // Data Produk Dummy Mockup
-  final allProducts = <Map<String, dynamic>>[
-    {
-      'name': 'Iced Americano',
-      'price': 35000,
-      'category': 'Coffee',
-      'image': 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=500',
-    },
-    {
-      'name': 'Caramel Macchiato',
-      'price': 50000,
-      'category': 'Coffee',
-      'image': 'https://i.pinimg.com/1200x/75/c7/f4/75c7f4625e029608ba917f777229f070.jpg',
-    },
-    {
-      'name': 'Green Tea Latte',
-      'price': 45000,
-      'category': 'Non-Coffee',
-      'image': 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=500',
-    },
-    {
-      'name': 'Classic Croissant',
-      'price': 30000,
-      'category': 'Food',
-      'image': 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=500',
-    },
-    {
-      'name': 'Chocolate Muffin',
-      'price': 38000,
-      'category': 'Food',
-      'image': 'https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=500',
-    },
-    {
-      'name': 'Cold Brew Tonic',
-      'price': 55000,
-      'category': 'Coffee',
-      'image': 'https://images.unsplash.com/photo-1513530534585-c7b1394c6d51?w=500',
-    },
-  ].obs;
-
+  var isLoading = false.obs;
+  var allProducts = <Map<String, dynamic>>[].obs;
   var filteredProducts = <Map<String, dynamic>>[].obs;
 
   @override
   void onInit() {
     super.onInit();
-    filteredProducts.assignAll(allProducts);
+    fetchMenus();
     searchController.addListener(() {
       filterDisplayProducts();
     });
+  }
+
+  Future<void> fetchMenus() async {
+    try {
+      isLoading(true);
+      final supabase = Supabase.instance.client;
+      final response = await supabase.from('menus').select().eq('is_available', true);
+
+      final List<Map<String, dynamic>> fetchedProducts = [];
+      for (var item in response) {
+        fetchedProducts.add({
+          'id': item['id'],
+          'name': item['menu_name'] ?? 'Unknown',
+          'price': item['price'] ?? 0,
+          'category': item['category'] ?? 'Others',
+          'image': item['image_url'] ?? 'https://via.placeholder.com/150',
+        });
+      }
+      
+      allProducts.assignAll(fetchedProducts);
+      filterDisplayProducts();
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal mengambil data menu dari Supabase: $e');
+    } finally {
+      isLoading(false);
+    }
   }
 
   void changeCategory(String category) {

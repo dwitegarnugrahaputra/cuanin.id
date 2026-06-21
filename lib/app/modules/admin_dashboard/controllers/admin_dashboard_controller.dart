@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminDashboardController extends GetxController {
   // Indeks Halaman Drawer Sidebar:
@@ -52,42 +53,39 @@ class AdminDashboardController extends GetxController {
   final List<String> destinationOptions = ['Outlet Tegal (Bar)', 'Outlet Semarang', 'Outlet Surabaya'];
 
   // --- DATA UTAMA INGREDIENTS GUDANG (REAKTIF .obs) ---
-  var ingredientsList = <Map<String, dynamic>>[
-    {
-      'name': 'Biji Kopi Houseblend',
-      'qty': 12.5,
-      'unit': 'Kg',
-      'image': 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?q=80&w=200&auto=format&fit=crop',
-    },
-    {
-      'name': 'Susu Diamond',
-      'qty': 4.0,
-      'unit': 'Ltr',
-      'image': 'https://images.unsplash.com/photo-1550583724-b2692b85b150?q=80&w=200&auto=format&fit=crop',
-    },
-    {
-      'name': 'Gula Aren',
-      'qty': 8.2,
-      'unit': 'Kg',
-      'image': 'https://images.unsplash.com/photo-1621996346565-e3bb64e819de?q=80&w=200&auto=format&fit=crop',
-    },
-    {
-      'name': 'Matcha Powder',
-      'qty': 0.0,
-      'unit': 'Kg',
-      'image': 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?q=80&w=200&auto=format&fit=crop',
-    },
-    {
-      'name': 'Espresso Blend No. 4',
-      'qty': 24.5,
-      'unit': 'Kg',
-      'image': 'https://images.unsplash.com/photo-1510972527409-cef6e4a4d64e?q=80&w=200&auto=format&fit=crop',
-    },
-  ].obs;
+  var isLoading = false.obs;
+  var ingredientsList = <Map<String, dynamic>>[].obs;
+
+  Future<void> fetchRawMaterials() async {
+    try {
+      isLoading(true);
+      final supabase = Supabase.instance.client;
+      final response = await supabase.from('raw_materials').select();
+
+      final List<Map<String, dynamic>> fetchedIngredients = [];
+      for (var item in response) {
+        fetchedIngredients.add({
+          'id': item['id'],
+          'name': item['material_name'] ?? 'Unknown',
+          'qty': (item['current_stock'] ?? 0).toDouble(),
+          'unit': item['unit'] ?? 'Pcs',
+          'image': 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?q=80&w=200&auto=format&fit=crop',
+          'category': item['category'],
+        });
+      }
+      
+      ingredientsList.assignAll(fetchedIngredients);
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal mengambil data gudang dari Supabase: $e');
+    } finally {
+      isLoading(false);
+    }
+  }
 
   @override
   void onInit() {
     super.onInit();
+    fetchRawMaterials();
     // Menghubungkan Text Listener ke Variabel Reaktif GetX
     searchController.addListener(() => searchQuery.value = searchController.text);
     wasteSearchController.addListener(() => wasteSearchQuery.value = wasteSearchController.text);
@@ -122,10 +120,47 @@ class AdminDashboardController extends GetxController {
   }
 
   // Selesai koreksi manual data scan nota (FR-A05)
-  void simpanValidasiStok() {
-    isTriggeredFromFab.value = false;
-    showReviewPage.value = false;
-    currentPageIndex.value = 0; // Kembalikan ke dashboard inventory utama
+  Future<void> simpanValidasiStok() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final supplierName = supplierController.text;
+      final itemName = itemNameController.text;
+      // Asumsi OCR mendeteksi 12 pcs berdasarkan mock text
+      final double addedQty = 12.0;
+
+      // Cari material_id berdasarkan nama bahan baku
+      final existingItem = ingredientsList.firstWhere(
+        (element) => element['name'].toString().toLowerCase() == itemName.toLowerCase(),
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (existingItem.isNotEmpty) {
+        // 1. Tambah ke supply_logs
+        await supabase.from('supply_logs').insert({
+          'supplier_name': supplierName,
+          'quantity_added': addedQty,
+          'source_type': 'OCR Scan',
+          'material_id': existingItem['id']
+        });
+
+        // 2. Update current_stock
+        final newStock = (existingItem['qty'] as double) + addedQty;
+        await supabase.from('raw_materials').update({
+          'current_stock': newStock
+        }).eq('id', existingItem['id']);
+
+        Get.snackbar('Berhasil', 'Data nota dari $supplierName telah disimpan dan stok diperbarui.', snackPosition: SnackPosition.TOP, backgroundColor: const Color(0xFF006847), colorText: Colors.white);
+      } else {
+        Get.snackbar('Peringatan', 'Bahan baku "$itemName" tidak ditemukan di database.', backgroundColor: Colors.amber, colorText: Colors.white);
+      }
+
+      isTriggeredFromFab.value = false;
+      showReviewPage.value = false;
+      currentPageIndex.value = 0; // Kembalikan ke dashboard inventory utama
+      fetchRawMaterials(); // Refresh UI
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal memproses nota: $e');
+    }
   }
 
   // --- LOGIC MODUL: WASTE MANAGEMENT / STOCK OPNAME (FR-A07) ---
@@ -143,12 +178,26 @@ class AdminDashboardController extends GetxController {
   void decrementAdjustment() { if (adjustmentQty.value > 0.5) adjustmentQty.value -= 0.5; }
   void decrementAdjustmentInternal() { if (adjustmentQty.value > 0.5) adjustmentQty.value -= 0.5; }
 
-  void eksekusiUpdateStokOpname() {
-    Get.snackbar(
-      'Stok Diperbarui', 'Penyesuaian stok ${selectedWasteItem['name']} berhasil disimpan.',
-      snackPosition: SnackPosition.TOP, backgroundColor: const Color(0xFF006847), colorText: Colors.white,
-    );
-    isViewingWasteForm.value = false; // Tutup sub-form, balik ke katalog list waste
+  Future<void> eksekusiUpdateStokOpname() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final double adj = adjustmentQty.value;
+      final currentStock = selectedWasteItem['qty'];
+      final newStock = currentStock - adj; // Asumsi stock opname/waste mengurangi stok
+      
+      await supabase.from('raw_materials').update({
+        'current_stock': newStock
+      }).eq('id', selectedWasteItem['id']);
+
+      Get.snackbar(
+        'Stok Diperbarui', 'Penyesuaian stok ${selectedWasteItem['name']} berhasil disimpan.',
+        snackPosition: SnackPosition.TOP, backgroundColor: const Color(0xFF006847), colorText: Colors.white,
+      );
+      isViewingWasteForm.value = false;
+      fetchRawMaterials();
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal memperbarui stok: $e');
+    }
   }
 
   // --- LOGIC MODUL: INTERNAL TRANSFER (FR-A08) ---

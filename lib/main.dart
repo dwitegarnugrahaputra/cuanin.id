@@ -20,7 +20,7 @@ void main() async {
   runApp(
     GetMaterialApp(
       title: "CUAN.in Kasir",
-      initialRoute: Routes.ADMIN_DASHBOARD, // Arahkan sementara ke sini buat ngetes UI lu, Gar // Sekarang mengarah ke gerbang Login terlebih dahulu
+      initialRoute: Routes.LOGIN, // Aplikasi sekarang akan mulai dari layar Login
       getPages: AppPages.routes,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

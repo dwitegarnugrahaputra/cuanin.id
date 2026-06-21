@@ -50,9 +50,9 @@ class HistoryController extends GetxController {
 
       // Update data transaksi di Supabase
       await supabase
-          .from('orders')
+          .from('sales_transactions')
           .update({
-        'status': 'Cancelled',
+        'status': 'VOID', // Sesuai dengan status yang ditangkap di React Owner
         'cancellation_reason': finalReason,
         'cancelled_by': cashierUid,
         'updated_at': DateTime.now().toIso8601String(),

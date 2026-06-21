@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cuaninkasir/app/modules/cart/controllers/cart_controller.dart';
 
 class PaymentController extends GetxController {
   // Data reaktif utama transaksi dari halaman Cart
@@ -63,19 +65,24 @@ class PaymentController extends GetxController {
       barrierDismissible: false,
     );
 
-    // FIX: Menggunakan seconds: 2 murni (int), tidak boleh double 1.5
-    Future.delayed(const Duration(seconds: 2), () {
-      Get.back();
-      Get.offAllNamed('/success', arguments: {
-        'amount': totalAmount.value,
-        'trxId': orderId.value,
-        'method': 'QRIS Digital'
-      });
+    Future.delayed(const Duration(seconds: 2), () async {
+      final invoiceNo = 'INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+      bool isSaved = await _saveTransactionToDatabase('QRIS', invoiceNo);
+      
+      Get.back(); // Tutup loading dialog
+      
+      if (isSaved) {
+        Get.offAllNamed('/success', arguments: {
+          'amount': totalAmount.value,
+          'trxId': invoiceNo,
+          'method': 'QRIS Digital'
+        });
+      }
     });
   }
 
   // METHOD 2: Konfirmasi Final Pembayaran Tunai (Cash)
-  void processCashPayment() {
+  void processCashPayment() async {
     if (!isCashEnough) {
       Get.snackbar(
         'Uang Kurang',
@@ -87,12 +94,87 @@ class PaymentController extends GetxController {
       return;
     }
 
-    // Tembak ke halaman sukses dengan membawa informasi Cash
-    Get.offAllNamed('/success', arguments: {
-      'amount': totalAmount.value,
-      'trxId': 'CSH-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-      'method': 'Cash / Tunai'
-    });
+    Get.dialog(const Center(child: CircularProgressIndicator(color: Color(0xFF006847))), barrierDismissible: false);
+    
+    final invoiceNo = 'CSH-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+    bool isSaved = await _saveTransactionToDatabase('Cash', invoiceNo);
+    
+    Get.back(); // Tutup loading dialog
+
+    if (isSaved) {
+      Get.offAllNamed('/success', arguments: {
+        'amount': totalAmount.value,
+        'trxId': invoiceNo,
+        'method': 'Cash / Tunai'
+      });
+    }
+  }
+
+  // Helper Simpan ke Supabase
+  Future<bool> _saveTransactionToDatabase(String paymentMethod, String invoiceNo) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final cartController = Get.find<CartController>();
+      final cashierUid = supabase.auth.currentSession?.user.id;
+      
+      // 1. Simpan Transaksi Induk
+      final salesRes = await supabase.from('sales_transactions').insert({
+        'invoice_number': invoiceNo,
+        'customer_name': 'Walk-in Customer',
+        'total_amount': totalAmount.value,
+        'payment_method': paymentMethod,
+        'status': 'SUCCESS',
+        'served_by': cashierUid,
+      }).select().single();
+
+      final transactionId = salesRes['id'];
+
+      // 2. Simpan Detail Item
+      final List<Map<String, dynamic>> itemsToInsert = [];
+      for (var item in cartController.cartItems) {
+        itemsToInsert.add({
+          'transaction_id': transactionId,
+          'menu_id': item['menu_id'], // Diperoleh dari pembaruan modul Home & Cart sebelumnya
+          'quantity': (item['quantity'] as RxInt).value,
+          'price_at_sale': item['price'],
+        });
+      }
+
+      if (itemsToInsert.isNotEmpty) {
+        await supabase.from('transaction_items').insert(itemsToInsert);
+
+        // 3. FITUR RAHASIA: Pengurangan Stok Gudang Otomatis Berdasarkan Resep (Automated Inventory Deduction)
+        for (var item in cartController.cartItems) {
+          final int qtyBeli = (item['quantity'] as RxInt).value;
+          final String menuId = item['menu_id'];
+
+          // Tarik komposisi resep untuk menu ini
+          final recipes = await supabase.from('menu_recipes').select().eq('menu_id', menuId);
+          
+          for (var recipe in recipes) {
+            final String materialId = recipe['material_id'];
+            final double neededPerCup = (recipe['quantity_needed'] as num).toDouble();
+            final double totalDeduction = neededPerCup * qtyBeli;
+
+            // Ambil stok terbaru di gudang
+            final rawMaterial = await supabase.from('raw_materials').select('current_stock').eq('id', materialId).single();
+            final double currentStock = (rawMaterial['current_stock'] as num).toDouble();
+            
+            // Update pemotongan stok
+            await supabase.from('raw_materials').update({
+              'current_stock': currentStock - totalDeduction
+            }).eq('id', materialId);
+          }
+        }
+      }
+
+      cartController.clearCart();
+      orderId.value = invoiceNo;
+      return true;
+    } catch (e) {
+      Get.snackbar('Error Transaksi', 'Gagal memproses transaksi di Supabase: $e', backgroundColor: Colors.red, colorText: Colors.white);
+      return false;
+    }
   }
 
   // Fungsi shortcut untuk klik tombol nominal instan (misal Rp50.000, Rp100.000)

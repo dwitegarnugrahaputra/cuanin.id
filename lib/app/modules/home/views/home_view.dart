@@ -226,6 +226,9 @@ class HomeView extends GetView<HomeController> {
           ),
           Expanded(
             child: Obx(() {
+              if (controller.isLoading.value) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFF006847)));
+              }
               if (controller.filteredProducts.isEmpty) {
                 return const Center(child: Text('Menu tidak ditemukan, Gar.', style: TextStyle(color: Colors.grey)));
               }
@@ -268,7 +271,7 @@ class HomeView extends GetView<HomeController> {
                                     onTap: () {
                                       controller.openOrderModifier(product['name'], product['price']);
                                       Get.bottomSheet(
-                                        _buildOrderModifierSheet(context, product['name'], product['image']),
+                                        _buildOrderModifierSheet(context, product['id'], product['name'], product['image']),
                                         isScrollControlled: true,
                                         backgroundColor: Colors.white,
                                         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -294,7 +297,7 @@ class HomeView extends GetView<HomeController> {
   }
 
   // --- LAYOUT KOMPONEN POPUP BOTTOM SHEET MODIFIER ---
-  Widget _buildOrderModifierSheet(BuildContext context, String name, String imageUrl) {
+  Widget _buildOrderModifierSheet(BuildContext context, String menuId, String name, String imageUrl) {
     return Container(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
@@ -419,7 +422,7 @@ class HomeView extends GetView<HomeController> {
                           if (controller.vanillaSyrupCount.value > 0) activeAddons.add("Vanilla Syrup (x${controller.vanillaSyrupCount.value})");
                           String addonsText = activeAddons.isEmpty ? "No Add-ons" : activeAddons.join(", ");
 
-                          cartController.addToCart(name: name, variant: controller.selectedVariant.value, sugar: controller.sugarLevelText, addons: addonsText, price: controller.calculatedTotalPrice, image: imageUrl);
+                          cartController.addToCart(menuId: menuId, name: name, variant: controller.selectedVariant.value, sugar: controller.sugarLevelText, addons: addonsText, price: controller.calculatedTotalPrice, image: imageUrl);
                           Get.back();
                           Get.snackbar('Berhasil', '$name berhasil dimasukkan ke keranjang belanja.', snackPosition: SnackPosition.TOP, backgroundColor: const Color(0xFF006847), colorText: Colors.white);
                         },

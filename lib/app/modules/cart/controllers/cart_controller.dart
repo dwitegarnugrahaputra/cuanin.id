@@ -27,6 +27,7 @@ class CartController extends GetxController {
 
   // Fungsi Inti FR-K04: Menyuntikkan produk hasil kustomisasi Order Modifier ke dalam List
   void addToCart({
+    required String menuId,
     required String name,
     required String variant,
     required String sugar,
@@ -47,6 +48,7 @@ class CartController extends GetxController {
       // Jika kustomisasinya beda atau menu baru, daftarkan baris baru di keranjang
       cartItems.add({
         'id': DateTime.now().millisecondsSinceEpoch, // Generate ID unik berbasis timestamp
+        'menu_id': menuId, // Simpan ID Supabase asli untuk direkam ke database
         'name': name,
         'variant': variant,
         'sugar': sugar,
