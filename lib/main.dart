@@ -1,3 +1,4 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Import package Supabase
@@ -8,13 +9,16 @@ void main() async {
   // 1. Wajib dipanggil paling atas untuk memastikan semua binding Flutter siap
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. INISIALISASI SUPABASE
+  // 2. LOAD .env — HARUS sebelum apa pun yang butuh API key/credential
+  await dotenv.load(fileName: ".env");
+
+  // 3. INISIALISASI SUPABASE (sekarang ambil dari .env, bukan hardcode)
   await Supabase.initialize(
-    url: 'https://qvuvnuhksxofyyzqzdse.supabase.co', //URL Supabase proyek cuanin.id
-    anonKey: 'sb_publishable_-3Z2QYcYb8W62LPloGiYVQ_KsvgU0dt', // Anon Key Supabase
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  // 3. INJEKSI GLOBAL STATE KANTONG BELANJA
+  // 4. INJEKSI GLOBAL STATE KANTONG BELANJA
   Get.put(CartController());
 
   runApp(

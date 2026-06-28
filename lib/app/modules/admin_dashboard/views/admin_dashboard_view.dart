@@ -13,7 +13,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
       key: controller.scaffoldKey,
       backgroundColor: const Color(0xFFF8F9FA),
 
-      // ================= HAMBURGER DRAWER SIDEBAR MENU (MURNI 3 MODUL ADMIN STOK) =================
+      // ================= HAMBURGER DRAWER SIDEBAR MENU (MURNI 2 MODUL ADMIN STOK) =================
       drawer: Drawer(
         child: Column(
           children: [
@@ -51,25 +51,10 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
               },
             ),
 
-            // Menu 3: Internal Transfer (FR-A08)
-            ListTile(
-              leading: Obx(() => Icon(Icons.swap_horiz_rounded, color: controller.currentPageIndex.value == 2 && !controller.isTriggeredFromFab.value ? const Color(0xFF006847) : Colors.grey[600])),
-              title: Obx(() => Text('Internal Transfer', style: TextStyle(fontWeight: controller.currentPageIndex.value == 2 && !controller.isTriggeredFromFab.value ? FontWeight.bold : FontWeight.normal, color: controller.currentPageIndex.value == 2 && !controller.isTriggeredFromFab.value ? const Color(0xFF006847) : Colors.black87))),
-              selected: controller.currentPageIndex.value == 2 && !controller.isTriggeredFromFab.value,
-              selectedTileColor: const Color(0xFFE6F4EA),
-              onTap: () {
-                controller.changePage(2);
-                Get.back();
-              },
-            ),
-
-            // Pendorong Elemen agar Menempel ke Dasar Sidebar Drawer
             const Spacer(),
-
-            // Garis Pembatas Halus Menuju Menu Aksi Logout
             Divider(color: Colors.grey[200], thickness: 1),
 
-            // Tombol Logout Pengaman Akun Di Dasar Sidebar (UX-Compliant)
+            // Tombol Logout Panel Di Dasar Sidebar
             ListTile(
               leading: const Icon(Icons.logout_rounded, color: Color(0xFFDC2626)),
               title: const Text(
@@ -77,11 +62,11 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                 style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFDC2626), fontSize: 14),
               ),
               onTap: () {
-                Get.back(); // Tutup Drawer otomatis sebelum dialog terbuka
-                controller.eksekusiLogout(); // Trigger Dialog Konfirmasi
+                Get.back();
+                controller.eksekusiLogout();
               },
             ),
-            const SizedBox(height: 12), // Padding pengaman tepi bawah perangkat modern
+            const SizedBox(height: 12),
           ],
         ),
       ),
@@ -121,8 +106,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
             return const Text('Data Confirmation', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18));
           } else if (controller.currentPageIndex.value == 1) {
             return Text(controller.isViewingWasteForm.value ? 'Stock Opname' : 'Select Product for Waste', style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold, fontSize: 18));
-          } else if (controller.currentPageIndex.value == 2) {
-            return const Text('Internal Transfer', style: TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold, fontSize: 18));
           }
 
           return Row(
@@ -163,8 +146,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                 return _buildInventoryTab(context, controller);
               case 1:
                 return controller.isViewingWasteForm.value ? _buildStockOpnameForm(context, controller) : _buildWasteManagementTab(context, controller);
-              case 2:
-                return _buildInternalTransferTab(context, controller);
               default:
                 return const Center(child: Text('Page Not Found'));
             }
@@ -198,12 +179,12 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
     );
   }
 
-  // ================= TAB 1: SCREEN INVENTORY UTAMA (FR-A02) =================
+  // ================= TAB 1: SCREEN INVENTORY UTAMA =================
   Widget _buildInventoryTab(BuildContext context, AdminDashboardController controller) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        Container(
+        Obx(() => Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0xFFF3F4F6))),
           child: Column(
@@ -211,23 +192,8 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
             children: [
               const Center(child: Text('TOTAL INVENTORY VALUE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF9CA3AF), letterSpacing: 0.5))),
               const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(controller.totalInventoryValue, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(8)),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.trending_up, size: 12, color: Color(0xFF009663)),
-                        const SizedBox(width: 2),
-                        Text(controller.inventoryTrend, style: const TextStyle(color: Color(0xFF009663), fontWeight: FontWeight.bold, fontSize: 10)),
-                      ],
-                    ),
-                  )
-                ],
+              Center(
+                child: Text(controller.totalInventoryValue, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
               ),
               const SizedBox(height: 20),
               Row(
@@ -265,7 +231,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
               )
             ],
           ),
-        ),
+        )),
         const SizedBox(height: 20),
         Row(
           children: [
@@ -339,7 +305,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
     );
   }
 
-  // ================= TAB 2: SELECTION PRODUCT FOR WASTE SCREEN (FR-A07 - LIST UTAMA) =================
+  // ================= TAB 2: SELECTION PRODUCT FOR WASTE SCREEN =================
   Widget _buildWasteManagementTab(BuildContext context, AdminDashboardController controller) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
@@ -417,7 +383,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
     );
   }
 
-  // ================= SUB-FORM UTUH PENYESUAIAN STOCK OPNAME / WASTE (FR-A07 - FIXED OBX RED SCREEN) =================
+  // ================= SUB-FORM UTUH PENYESUAIAN STOCK OPNAME / WASTE =================
   Widget _buildStockOpnameForm(BuildContext context, AdminDashboardController controller) {
     final item = controller.selectedWasteItem;
     return ListView(
@@ -428,7 +394,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         const Text('Adjust inventory counts and record waste.', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
         const SizedBox(height: 20),
 
-        // 1. KARTU INFORMASI PRODUK
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
@@ -451,7 +416,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         ),
         const SizedBox(height: 20),
 
-        // 2. COUNTER QUANTITY ADJUSTMENT
         Container(
           padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
@@ -464,7 +428,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                 children: [
                   InkWell(
                     onTap: () => controller.decrementAdjustment(),
-                    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFFF3F4F6), shape: BoxShape.circle), child: const Icon(Icons.remove, color: Colors.grey, size: 20)),
+                    child: Container(padding: const EdgeInsets.all(12), decoration: const BoxDecoration(color: Color(0xFFF3F4F6), shape: BoxShape.circle), child: const Icon(Icons.remove, color: Colors.grey, size: 20)),
                   ),
                   const SizedBox(width: 36),
                   Column(
@@ -486,7 +450,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         ),
         const SizedBox(height: 24),
 
-        // 3. SELECTION REASON FOR ADJUSTMENT GRID 2x2 (PERBAIKAN ANTI-ERROR)
         const Text('REASON FOR ADJUSTMENT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
         const SizedBox(height: 10),
         GridView.builder(
@@ -502,7 +465,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
           itemBuilder: (context, index) {
             final reason = controller.adjustmentReasons[index];
 
-            // Obx dipasang secara modular spesifik di baris return tombol komponen saja
             return Obx(() {
               final isSelected = controller.selectedReason.value == reason;
               return InkWell(
@@ -533,7 +495,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         ),
         const SizedBox(height: 24),
 
-        // 4. FIELD NOTES OPTIONAL
         const Text('NOTES (OPTIONAL)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
         const SizedBox(height: 10),
         TextField(
@@ -551,7 +512,6 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         ),
         const SizedBox(height: 28),
 
-        // 5. TOMBOL SUBMIT UPDATE STOK
         SizedBox(
           width: double.infinity,
           height: 50,
@@ -566,168 +526,25 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
     );
   }
 
-  // ================= TAB 3: INTERNAL TRANSFER SCREEN (FR-A08) =================
-  Widget _buildInternalTransferTab(BuildContext context, AdminDashboardController controller) {
-    return ListView(
-      padding: const EdgeInsets.all(20.0),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('KIRIM DARI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-              const SizedBox(height: 8),
-              Obx(() => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(12)),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: controller.selectedOrigin.value,
-                    isExpanded: true,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-                    items: controller.originOptions.map((String val) {
-                      return DropdownMenuItem<String>(value: val, child: Row(children: [const Icon(Icons.home_work_outlined, color: Color(0xFF006847), size: 18), const SizedBox(width: 10), Text(val, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87))]));
-                    }).toList(),
-                    onChanged: (newVal) => controller.selectedOrigin.value = newVal!,
-                  ),
-                ),
-              )),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12.0),
-                child: Center(
-                  child: Container(padding: const EdgeInsets.all(8), decoration: const BoxDecoration(color: Color(0xFF006847), shape: BoxShape.circle), child: const Icon(Icons.arrow_downward_rounded, color: Colors.white, size: 14)),
-                ),
-              ),
-              const Text('TUJUAN TRANSFER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-              const SizedBox(height: 8),
-              Obx(() => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(12)),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: controller.selectedDestination.value,
-                    isExpanded: true,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-                    items: controller.destinationOptions.map((String val) {
-                      return DropdownMenuItem<String>(value: val, child: Row(children: [const Icon(Icons.storefront_rounded, color: Color(0xFF006847), size: 18), const SizedBox(width: 10), Text(val, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87))]));
-                    }).toList(),
-                    onChanged: (newVal) => controller.selectedDestination.value = newVal!,
-                  ),
-                ),
-              )),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE5E7EB))),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(width: 52, height: 52, decoration: BoxDecoration(color: const Color(0xFF0A2E24), borderRadius: BorderRadius.circular(12), image: const DecorationImage(image: NetworkImage('https://images.unsplash.com/photo-1550583724-b2692b85b150?q=80&w=200&auto=format&fit=crop'), fit: BoxFit.cover))),
-                  const SizedBox(width: 14),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Susu Diamond', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF111827))),
-                      SizedBox(height: 4),
-                      Text('Stok Saat Ini: 4.0 Ltr', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
-                    ],
-                  )
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(color: const Color(0xFFF3F4F6).withOpacity(0.7), borderRadius: BorderRadius.circular(14)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    InkWell(
-                      onTap: () => controller.decrementTransfer(),
-                      child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: Icon(Icons.remove, color: Colors.grey[600], size: 18)),
-                    ),
-                    const SizedBox(width: 32),
-                    Column(
-                      children: [
-                        Obx(() => Text(controller.transferQty.value.toStringAsFixed(1), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF111827)))),
-                        const SizedBox(height: 4),
-                        const Text('LITERS', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(width: 32),
-                    InkWell(
-                      onTap: () => controller.incrementTransfer(),
-                      child: Container(padding: const EdgeInsets.all(10), decoration: const BoxDecoration(color: Color(0xFF006847), shape: BoxShape.circle), child: const Icon(Icons.add, color: Colors.white, size: 18)),
-                    ),
-                  ],
-                ),
-              )
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton(
-            onPressed: () => controller.eksekusiMutasiInternal(),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF006847), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Transform.rotate(angle: -0.4, child: const Icon(Icons.send_rounded, color: Colors.white, size: 16)),
-                const SizedBox(width: 8),
-                const Text('Kirim & Mutasi Stok', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
-        const Text('RIWAYAT TRANSFER TERAKHIR', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.8)),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFF3F4F6))),
-          child: Row(
-            children: [
-              Container(padding: const EdgeInsets.all(10), decoration: const BoxDecoration(color: Color(0xFF6EE7B7), shape: BoxShape.circle), child: const Icon(Icons.archive_rounded, color: Color(0xFF006847), size: 20)),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Biji Kopi Houseblend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF111827))),
-                    SizedBox(height: 4),
-                    Text('Gudang Utama ➔ Outlet Tegal', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text('5.0\nKg', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF111827), height: 1.2)),
-                  const SizedBox(height: 6),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(6)), child: const Text('BERHASIL', style: TextStyle(color: Color(0xFF006847), fontSize: 9, fontWeight: FontWeight.bold)))
-                ],
-              )
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ================= CAMERA SCANNER OVERLAY (FR-A03) =================
+  // ================= CAMERA SCANNER OVERLAY =================
   Widget _buildCameraScannerOverlay(BuildContext context, AdminDashboardController controller) {
     return Stack(
       children: [
-        Container(width: double.infinity, height: double.infinity, decoration: const BoxDecoration(image: DecorationImage(image: NetworkImage('https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop'), fit: BoxFit.cover))),
+        // Background sekarang pakai foto nota yang BARU DIAMBIL dari kamera,
+        // bukan foto stok dummy. Fallback ke foto stok hanya kalau entah
+        // kenapa belum ada file foto (seharusnya jarang terjadi).
+        Obx(() => Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: controller.selectedImageFile.value != null
+                  ? FileImage(controller.selectedImageFile.value!) as ImageProvider
+                  : const NetworkImage('https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop'),
+              fit: BoxFit.cover,
+            ),
+          ),
+        )),
         Container(color: Colors.black.withOpacity(0.55)),
         Center(child: Container(width: MediaQuery.of(context).size.width * 0.8, height: MediaQuery.of(context).size.height * 0.45, decoration: BoxDecoration(border: Border.all(color: const Color(0xFF009663), width: 2), borderRadius: BorderRadius.circular(16)))),
         Center(
@@ -744,28 +561,206 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
     );
   }
 
-  // ================= SCREEN DATA CONFIRMATION FORM VALIDATION (FR-A05) =================
+  // ================= SCREEN DATA CONFIRMATION FORM VALIDATION (FR-A05 — MULTI ITEM) =================
   Widget _buildOcrReviewScreen(BuildContext context, AdminDashboardController controller) {
     return ListView(
       padding: const EdgeInsets.all(20.0),
       children: [
-        Stack(
-          children: [
-            Container(height: 180, width: double.infinity, decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), image: const DecorationImage(image: NetworkImage('https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'), fit: BoxFit.cover))),
-            Container(height: 180, decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.black.withOpacity(0.3))),
-            Positioned(top: 12, left: 12, child: Row(children: [const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 14), const SizedBox(width: 4), Text('98% Accuracy', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))])),
-          ],
-        ),
+        Obx(() => Container(
+          height: 180,
+          width: double.infinity,
+          decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              image: DecorationImage(
+                  image: controller.selectedImageFile.value != null
+                      ? FileImage(controller.selectedImageFile.value!) as ImageProvider
+                      : const NetworkImage('https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400'),
+                  fit: BoxFit.cover
+              )
+          ),
+          child: Stack(
+            children: [
+              Container(height: 180, decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.black.withOpacity(0.3))),
+              Positioned(top: 12, left: 12, child: Row(children: const [Icon(Icons.check_circle, color: Color(0xFF10B981), size: 14), SizedBox(width: 4), Text('98% Accuracy', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))])),
+            ],
+          ),
+        )),
         const SizedBox(height: 24),
+
+        // 1. Input Supplier (cuma 1, karena 1 nota = 1 supplier)
         const Text('SUPPLIER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
         const SizedBox(height: 8),
         TextField(controller: controller.supplierController, decoration: InputDecoration(filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF009663))))),
-        const SizedBox(height: 20),
-        const Text('ITEM NAME', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
-        const SizedBox(height: 8),
-        TextField(controller: controller.itemNameController, decoration: InputDecoration(filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF009663))))),
+        const SizedBox(height: 24),
+
+        // 2. Header daftar item + jumlah baris terdeteksi
+        Obx(() => Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('ITEMS DETECTED', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+            Text('${controller.scannedItems.length} item', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF009663))),
+          ],
+        )),
+        const SizedBox(height: 10),
+
+        // 3. List item, satu card per baris, semua field bisa diedit
+        Obx(() => Column(
+          children: List.generate(controller.scannedItems.length, (index) {
+            final item = controller.scannedItems[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Baris atas: nomor urut + nama item + tombol hapus
+                  Row(
+                    children: [
+                      Container(
+                        width: 22, height: 22,
+                        decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(6)),
+                        child: Center(child: Text('${index + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF009663)))),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: item.nameController,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            hintText: 'Nama item',
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                        onPressed: () => controller.removeScannedItem(index),
+                        tooltip: 'Hapus baris ini',
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 16),
+                  // Baris bawah: qty, unit, total harga — 3 kolom sejajar
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: _buildMiniField('QTY', item.qtyController, keyboardType: TextInputType.number),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: _buildMiniField('UNIT', item.unitController),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 3,
+                        child: _buildMiniField('TOTAL HARGA (Rp)', item.priceController, keyboardType: TextInputType.number),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
+        )),
+
+        // Pesan kalau semua baris ke-hapus
+        Obx(() => controller.scannedItems.isEmpty
+            ? Container(
+          padding: const EdgeInsets.all(20),
+          alignment: Alignment.center,
+          child: Text('Tidak ada item tersisa. Foto ulang nota.', style: TextStyle(color: Colors.grey[500])),
+        )
+            : const SizedBox.shrink()),
+
+        const SizedBox(height: 12),
+
+        const SizedBox(height: 10),
+        Text(
+          'Catatan: angka di atas dibaca langsung dari nota asli. Kalau kamu edit/hapus baris item, angka ini tidak otomatis berubah.',
+          style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 12),
+
+        // 4. Breakdown total nota: Sub Total, Diskon, PPN, Grand Total
+        // Nilai ini dibaca dari hasil AI (bukan dihitung ulang dari item),
+        // supaya sama persis dengan yang tercetak di nota fisik.
+        Obx(() => Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+          child: Column(
+            children: [
+              _buildBreakdownRow('Sub Total', formatRupiah(controller.notaSubtotal.value)),
+              if (controller.notaDiscount.value > 0)
+                _buildBreakdownRow('Diskon', '- ${formatRupiah(controller.notaDiscount.value)}', valueColor: const Color(0xFFDC2626)),
+              if (controller.notaTax.value > 0)
+                _buildBreakdownRow('PPN', formatRupiah(controller.notaTax.value)),
+              const Divider(height: 16),
+              _buildBreakdownRow(
+                'TOTAL NOTA',
+                formatRupiah(controller.notaGrandTotal.value),
+                isBold: true,
+              ),
+            ],
+          ),
+        )),
         const SizedBox(height: 32),
-        SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: () => controller.simpanValidasiStok(), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Konfirmasi & Update Stok', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+
+        // Tombol Konfirmasi Update Ke Database
+        SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+                onPressed: () => controller.simpanValidasiStok(),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: const Text('Konfirmasi & Update Stok', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+            )
+        ),
+      ],
+    );
+  }
+
+  // Helper baris breakdown total nota (label kiri, nilai kanan)
+  Widget _buildBreakdownRow(String label, String value, {bool isBold = false, Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: isBold ? 13 : 12, fontWeight: isBold ? FontWeight.bold : FontWeight.w500, color: isBold ? const Color(0xFF006847) : const Color(0xFF6B7280))),
+          Text(value, style: TextStyle(fontSize: isBold ? 16 : 13, fontWeight: isBold ? FontWeight.bold : FontWeight.w600, color: valueColor ?? (isBold ? const Color(0xFF006847) : const Color(0xFF111827)))),
+        ],
+      ),
+    );
+  }
+
+  // Helper kecil untuk field qty/unit/harga di tiap baris item, biar gak berulang
+  Widget _buildMiniField(String label, TextEditingController controller, {TextInputType? keyboardType}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
+        const SizedBox(height: 4),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+          ),
+        ),
       ],
     );
   }
