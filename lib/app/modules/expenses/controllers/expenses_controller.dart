@@ -1,44 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../data/session_controller.dart'; // sesuaikan path sesuai struktur project kamu
 
 class ExpensesController extends GetxController {
+  final supabase = Supabase.instance.client;
+
   // Controller untuk menangkap inputan Form kasir
   final descriptionController = TextEditingController();
   final amountController = TextEditingController();
 
-  // List data dummy pengeluaran lokal reaktif (Sesuai Presisi Gambar image_3b8e0b.png)
-  var expenseLog = <Map<String, dynamic>>[
-    {
-      'title': 'Isi Ulang Gas 3kg',
-      'time': '09:30 AM',
-      'amount': 24000,
-      'icon': Icons.restaurant_menu_rounded,
-      'iconColor': Colors.orange,
-    },
-    {
-      'title': 'Beli Air Galon',
-      'time': '11:15 AM',
-      'amount': 30000,
-      'icon': Icons.local_drink_rounded,
-      'iconColor': Colors.teal,
-    },
-    {
-      'title': 'Bayar Parkir Kurir',
-      'time': '02:00 PM',
-      'amount': 5000,
-      'icon': Icons.local_shipping_rounded,
-      'iconColor': Colors.indigo,
-    },
-  ].obs;
+  var isLoading = false.obs;
+  var isSaving = false.obs;
+
+  // Data dari Supabase, hanya entry HARI INI (sesuai judul "Today's Activity Log")
+  var expenseLog = <Map<String, dynamic>>[].obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    fetchTodayExpenses();
+  }
 
   // Menghitung Total Pengeluaran Hari Ini secara otomatis dan reaktif
   int get totalExpenseToday {
-    return expenseLog.fold(0, (sum, item) => sum + (item['amount'] as int));
+    return expenseLog.fold<int>(
+      0,
+          (sum, item) => sum + ((item['amount'] as num?)?.toInt() ?? 0),
+    );
   }
 
-  // Fungsi menambah pengeluaran baru ke dalam array lokal (FR-K09)
-  void addExpenseEntry() {
+  // --- AMBIL PENGELUARAN HARI INI DARI SUPABASE ---
+  // Difilter berdasarkan created_at (00:00 hari ini s/d sekarang), bukan
+  // kolom terpisah, supaya tidak perlu maintain field tanggal tambahan.
+  Future<void> fetchTodayExpenses() async {
+    try {
+      isLoading(true);
+
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day).toUtc();
+
+      final response = await supabase
+          .from('expenses')
+          .select('id, description, amount, created_at')
+          .gte('created_at', startOfDay.toIso8601String())
+          .order('created_at', ascending: false);
+
+      expenseLog.assignAll(List<Map<String, dynamic>>.from(response));
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Gagal mengambil data pengeluaran: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  // Fungsi menambah pengeluaran baru, sekarang disimpan ke Supabase (FR-K09)
+  Future<void> addExpenseEntry() async {
     String desc = descriptionController.text.trim();
     String amountText = amountController.text.trim();
 
@@ -66,30 +90,83 @@ class ExpensesController extends GetxController {
       return;
     }
 
-    // Ambil waktu realtime saat kasir menekan simpan
-    String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
+    try {
+      isSaving(true);
 
-    // Masukkan data baru ke baris paling atas list log tanpa embel-embel kategori
-    expenseLog.insert(0, {
-      'title': desc,
-      'time': formattedTime,
-      'amount': amount,
-      'icon': Icons.payments_rounded, // Ikon default minimalis untuk input baru
-      'iconColor': const Color(0xFF006847),
-    });
+      final session = Get.find<SessionController>();
+      final String staffId = session.staffId.value;
+      final String ownerUserId = session.ownerUserId.value;
 
-    // Reset isi form inputan kembali bersih
-    descriptionController.clear();
-    amountController.clear();
+      if (ownerUserId.isEmpty) {
+        Get.snackbar(
+          'Gagal Menyimpan',
+          'Sesi staf tidak ditemukan. Silakan login ulang.',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.red.shade700,
+          colorText: Colors.white,
+        );
+        return;
+      }
 
-    // Munculkan notifikasi sukses khas cuanin.id
-    Get.snackbar(
-      'Berhasil',
-      'Pengeluaran harian berhasil dicatat ke sistem.',
-      snackPosition: SnackPosition.TOP,
-      backgroundColor: const Color(0xFF006847),
-      colorText: Colors.white,
+      final inserted = await supabase
+          .from('expenses')
+          .insert({
+        'owner_user_id': ownerUserId,
+        'recorded_by': staffId.isNotEmpty ? staffId : null,
+        'description': desc,
+        'amount': amount,
+      })
+          .select('id, description, amount, created_at')
+          .single();
+
+      // Masukkan ke baris paling atas list lokal tanpa perlu fetch ulang semua data
+      expenseLog.insert(0, inserted);
+
+      // Reset isi form inputan kembali bersih
+      descriptionController.clear();
+      amountController.clear();
+
+      // Munculkan notifikasi sukses khas cuanin.id
+      Get.snackbar(
+        'Berhasil',
+        'Pengeluaran harian berhasil dicatat ke sistem.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF006847),
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Gagal menyimpan pengeluaran: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: Colors.red.shade700,
+        colorText: Colors.white,
+      );
+    } finally {
+      isSaving(false);
+    }
+  }
+
+  // --- FORMAT WAKTU: "09:30 AM" dari created_at (timestamptz) ---
+  String formatTime(String? createdAt) {
+    if (createdAt == null) return '-';
+    try {
+      final dt = DateTime.parse(createdAt).toLocal();
+      return DateFormat('hh:mm a').format(dt);
+    } catch (e) {
+      return '-';
+    }
+  }
+
+  // --- FORMAT RUPIAH: 24000 -> "Rp 24.000" ---
+  String formatRupiah(dynamic amount) {
+    final num value = amount is num ? amount : (num.tryParse(amount.toString()) ?? 0);
+    final intPart = value.toInt();
+    final formatted = intPart.toString().replaceAllMapped(
+      RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"),
+          (Match m) => "${m[1]}.",
     );
+    return 'Rp $formatted';
   }
 
   @override

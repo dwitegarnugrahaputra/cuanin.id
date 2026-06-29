@@ -1,141 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../home/controllers/home_controller.dart'; // Import HomeController global
+import '../controllers/orders_controller.dart';
 
-// Nama Class diganti manual jadi ActiveOrdersView agar sesuai representasi fitur lu
-class ActiveOrdersView extends StatelessWidget {
+class ActiveOrdersView extends GetView<OrdersController> {
   const ActiveOrdersView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final HomeController homeController = Get.find<HomeController>();
+    // Pastikan controller terdaftar (aman dipanggil berulang, GetX hanya
+    // membuat instance baru kalau belum ada).
+    final OrdersController ordersController = Get.put(OrdersController());
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+    // Scaffold, AppBar, & Drawer DIHAPUS. Hanya me-return konten utamanya.
+    return Obx(() {
+      if (ordersController.isLoading.value) {
+        return const Center(
+          child: CircularProgressIndicator(color: Color(0xFF006847)),
+        );
+      }
 
-      // 1. APP BAR HAMBURGER (image_9727e3.png)
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-          ),
-        ),
-        title: const Text(
-          'Active Orders',
-          style: TextStyle(color: Color(0xFF2D2D2D), fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.home_outlined, color: Colors.black87),
-            onPressed: () {
-              homeController.changeTab(0);
-            },
-          ),
-        ],
-      ),
-
-      // 2. HAMBURGER MENU SYSTEM (DRAWER)
-      drawer: Drawer(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-              decoration: const BoxDecoration(color: Color(0xFF006847)),
-              currentAccountPicture: const CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Color(0xFF006847), size: 40),
+      if (ordersController.activeOrders.isEmpty) {
+        return RefreshIndicator(
+          color: const Color(0xFF006847),
+          onRefresh: ordersController.fetchActiveOrders,
+          child: ListView(
+            children: const [
+              SizedBox(height: 120),
+              Center(
+                child: Text(
+                  'Belum ada order aktif saat ini.',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
-              accountName: const Text('Kasir Active', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              accountEmail: const Text('kasir@cuanin.id'),
-            ),
-            Obx(() => ListTile(
-              leading: Icon(Icons.local_cafe_rounded, color: homeController.currentNavIndex.value == 0 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Menu Catalog', style: TextStyle(fontWeight: FontWeight.bold)),
-              selected: homeController.currentNavIndex.value == 0,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
-              onTap: () {
-                homeController.changeTab(0);
-                Get.back();
-              },
-            )),
-            Obx(() => ListTile(
-              leading: Icon(Icons.assignment_rounded, color: homeController.currentNavIndex.value == 1 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Active Orders', style: TextStyle(fontWeight: FontWeight.bold)),
-              selected: homeController.currentNavIndex.value == 1,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
-              onTap: () {
-                homeController.changeTab(1);
-                Get.back();
-              },
-            )),
-            Obx(() => ListTile(
-              leading: Icon(Icons.history_rounded, color: homeController.currentNavIndex.value == 2 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Order History', style: TextStyle(fontWeight: FontWeight.bold)),
-              selected: homeController.currentNavIndex.value == 2,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
-              onTap: () {
-                homeController.changeTab(2);
-                Get.back();
-              },
-            )),
-            const Spacer(),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              onTap: () => Get.back(),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      }
 
-      // 3. KONTEN LAYOUT UTAMA (image_9727e3.png)
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildActiveOrderCard(
-            context,
-            tableName: 'Table 12',
-            orderId: 'Order #842 • 15 mins ago',
-            itemsCount: '5 Items Total',
-            price: 'Rp84.50,00',
-            imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=500',
-          ),
-          _buildActiveOrderCard(
-            context,
-            tableName: 'Table 05',
-            orderId: 'Order #845 • 8 mins ago',
-            itemsCount: '3 Items Total',
-            price: 'Rp42.25,00',
-            imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=500',
-          ),
-          _buildActiveOrderCard(
-            context,
-            tableName: 'Table 22',
-            orderId: 'Order #848 • 2 mins ago',
-            itemsCount: '8 Items Total',
-            price: 'Rp126.00,00',
-            imageUrl: 'https://images.unsplash.com/photo-1513530534585-c7b1394c6d51?w=500',
-          ),
-        ],
-      ),
-    );
+      return RefreshIndicator(
+        color: const Color(0xFF006847),
+        onRefresh: ordersController.fetchActiveOrders,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: ordersController.activeOrders.length,
+          itemBuilder: (context, index) {
+            final order = ordersController.activeOrders[index];
+            return _buildActiveOrderCard(context, ordersController, order);
+          },
+        ),
+      );
+    });
   }
 
   Widget _buildActiveOrderCard(
-      BuildContext context, {
-        required String tableName,
-        required String orderId,
-        required String itemsCount,
-        required String price,
-        required String imageUrl,
-      }) {
+      BuildContext context,
+      OrdersController ordersController,
+      Map<String, dynamic> order,
+      ) {
+    final String invoiceNumber = order['invoiceNumber'] ?? '-';
+    final String customerName = order['customerName'] ?? 'Pelanggan';
+    final int itemsCount = order['itemsCount'] ?? 0;
+    final String priceLabel = ordersController.formatRupiah(order['totalAmount']);
+    final String timeLabel = ordersController.timeAgo(order['createdAt']);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       color: Colors.white,
@@ -149,19 +76,31 @@ class ActiveOrdersView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(tableName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+            // --- HEADER: Nomor Order jadi judul utama (gantinya nomor meja) ---
+            Text(
+              'Order #$invoiceNumber',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+            ),
             const SizedBox(height: 2),
-            Text(orderId, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(
+              '$customerName • $timeLabel',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
             const SizedBox(height: 14),
             Row(
               children: [
+                // --- ICON GENERIK (gantinya foto random) ---
                 Container(
                   width: 70,
                   height: 70,
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F3F4),
                     borderRadius: BorderRadius.circular(12),
-                    image: DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover),
+                  ),
+                  child: const Icon(
+                    Icons.receipt_long_rounded,
+                    color: Color(0xFF006847),
+                    size: 32,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -169,9 +108,23 @@ class ActiveOrdersView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(itemsCount, style: TextStyle(color: Colors.grey.shade600, fontSize: 14, fontWeight: FontWeight.w500)),
+                      Text(
+                        '$itemsCount Items Total',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(price, style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold, fontSize: 22)),
+                      Text(
+                        priceLabel,
+                        style: const TextStyle(
+                          color: Color(0xFF006847),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -182,32 +135,71 @@ class ActiveOrdersView extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      // TODO: Navigasi ke halaman detail order (opsional, belum diminta)
+                    },
                     style: OutlinedButton.styleFrom(
                       backgroundColor: const Color(0xFFF1F3F4),
                       side: BorderSide.none,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: const Text('View Details', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'View Details',
+                      style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () => _confirmFinishOrder(context, ordersController, order),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF006847),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: const Text('Finish Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Finish Order',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Konfirmasi sebelum order ditandai selesai, supaya tidak ke-tap tidak sengaja.
+  void _confirmFinishOrder(
+      BuildContext context,
+      OrdersController ordersController,
+      Map<String, dynamic> order,
+      ) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Selesaikan Order?'),
+        content: Text(
+          'Order #${order['invoiceNumber']} akan ditandai sebagai selesai dan dihapus dari daftar order aktif.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF006847)),
+            onPressed: () {
+              Get.back();
+              ordersController.finishOrder(order['id'].toString());
+            },
+            child: const Text('Ya, Selesaikan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

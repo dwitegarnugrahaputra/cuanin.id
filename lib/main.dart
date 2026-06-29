@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Import package Supabase
 import 'app/routes/app_pages.dart';
 import 'app/modules/cart/controllers/cart_controller.dart';
+import 'app/data/session_controller.dart';
 
 void main() async {
   // 1. Wajib dipanggil paling atas untuk memastikan semua binding Flutter siap
@@ -20,6 +21,12 @@ void main() async {
 
   // 4. INJEKSI GLOBAL STATE KANTONG BELANJA
   Get.put(CartController());
+
+  // 5. INJEKSI GLOBAL STATE SESI STAF YANG LOGIN (kasir / admin stok).
+  //    permanent: true supaya TIDAK ikut ke-dispose saat Get.offAllNamed
+  //    dipanggil di LoginController/HomeController — data staf yang login
+  //    harus tetap hidup selama app berjalan, sampai logout manual.
+  Get.put(SessionController(), permanent: true);
 
   runApp(
     GetMaterialApp(

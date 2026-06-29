@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/home_controller.dart';
 import '../../cart/views/cart_view.dart';
-import '../../cart/controllers/cart_controller.dart';
 import '../../history/views/history_view.dart';
 import '../../orders/views/orders_view.dart';
 import '../../expenses/views/expenses_view.dart';
-import '../../shift/views/shift_view.dart'; // Import Modul Laporan Shift Baru untuk FR-K10
+import '../../shift/views/shift_view.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({Key? key}) : super(key: key);
@@ -18,13 +17,17 @@ class HomeView extends GetView<HomeController> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
 
-      // 1. APP BAR MANAGEMENT SYSTEM (Otomatis Sembunyi di Halaman Non-Katalog)
+      // 1. APP BAR MANAGEMENT SYSTEM (DINAMIS & KONSISTEN)
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: Obx(() {
-          // Jika masuk halaman index 1, 2, 3, atau 4, sembunyikan AppBar utama HomeView
-          if (homeController.currentNavIndex.value != 0) {
-            return const SizedBox.shrink();
+          String appBarTitle = 'CUAN.in';
+          switch (homeController.currentNavIndex.value) {
+            case 0: appBarTitle = 'Menu Catalog'; break;
+            case 1: appBarTitle = 'Active Orders'; break;
+            case 2: appBarTitle = 'Order History'; break;
+            case 3: appBarTitle = 'Expense Management'; break;
+            case 4: appBarTitle = 'Laporan Shift'; break;
           }
 
           return AppBar(
@@ -36,126 +39,193 @@ class HomeView extends GetView<HomeController> {
                 onPressed: () => Scaffold.of(context).openDrawer(),
               ),
             ),
-            title: const Text(
-              'Menu Catalog',
-              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 20),
-            ),
-            centerTitle: false,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
-                onPressed: () => Get.to(() => const CartView()),
+            title: Text(
+              appBarTitle,
+              style: TextStyle(
+                color: homeController.currentNavIndex.value == 3
+                    ? const Color(0xFF006847)
+                    : Colors.black87,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
               ),
+            ),
+            centerTitle: homeController.currentNavIndex.value != 0,
+            actions: [
+              if (homeController.currentNavIndex.value == 0)
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
+                  onPressed: () => Get.to(() => const CartView()),
+                ),
+              if (homeController.currentNavIndex.value == 1)
+                IconButton(
+                  icon: const Icon(Icons.home_outlined, color: Colors.black87),
+                  onPressed: () => homeController.changeTab(0),
+                ),
+              if (homeController.currentNavIndex.value == 2)
+                IconButton(
+                  icon: const Icon(Icons.calendar_today, color: Color(0xFF006847)),
+                  onPressed: () {}, // TODO: Buka date picker
+                ),
+              if (homeController.currentNavIndex.value == 3)
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF006847)),
+                  onPressed: () {}, // TODO: Refresh data expense
+                ),
+              if (homeController.currentNavIndex.value == 4) ...[
+                IconButton(icon: const Icon(Icons.info_outline_rounded, color: Colors.black87), onPressed: () {}),
+                IconButton(icon: const Icon(Icons.print_outlined, color: Colors.black87), onPressed: () {}),
+              ]
             ],
           );
         }),
       ),
 
-      // 2. HAMBURGER MENU SYSTEM (DRAWER UTAMA)
+      // 2. HAMBURGER MENU SYSTEM
       drawer: Drawer(
         child: Column(
           children: [
-            UserAccountsDrawerHeader(
-              decoration: const BoxDecoration(color: Color(0xFF006847)),
-              currentAccountPicture: const CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Color(0xFF006847), size: 40),
-              ),
-              accountName: const Text('Kasir Active', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              accountEmail: const Text('kasir@cuanin.id'),
-            ),
+            // --- DRAWER HEADER: PROFIL KASIR (REAKTIF) ---
+            Obx(() {
+              final imageUrl = homeController.cashierImageUrl.value;
+              final hasImage = imageUrl.isNotEmpty;
 
-            // Menu 1: Catalog (Index 0)
+              return UserAccountsDrawerHeader(
+                decoration: const BoxDecoration(color: Color(0xFF006847)),
+                currentAccountPicture: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  backgroundImage: hasImage ? NetworkImage(imageUrl) : null,
+                  onBackgroundImageError: hasImage
+                      ? (exception, stackTrace) {
+                    // Kalau gambar gagal dimuat (URL rusak/expired),
+                    // kosongkan supaya otomatis fallback ke icon person.
+                    homeController.cashierImageUrl.value = '';
+                  }
+                      : null,
+                  child: !hasImage
+                      ? const Icon(Icons.person, color: Color(0xFF006847), size: 40)
+                      : null,
+                ),
+                accountName: Text(
+                  homeController.cashierName.value,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                accountEmail: Text(homeController.cashierEmail.value),
+              );
+            }),
+
+            // Menu 0: Catalog
             Obx(() => ListTile(
-              leading: Icon(Icons.local_cafe_rounded, color: homeController.currentNavIndex.value == 0 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Menu Catalog', style: TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(
+                Icons.menu_book_outlined,
+                color: homeController.currentNavIndex.value == 0
+                    ? const Color(0xFF006847)
+                    : Colors.black54,
+              ),
+              title: const Text('Menu Catalog'),
               selected: homeController.currentNavIndex.value == 0,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              selectedColor: const Color(0xFF006847),
               onTap: () {
                 homeController.changeTab(0);
                 Get.back();
               },
             )),
 
-            // Menu 2: Active Orders (Index 1)
+            // Menu 1: Active Orders
             Obx(() => ListTile(
-              leading: Icon(Icons.assignment_rounded, color: homeController.currentNavIndex.value == 1 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Active Orders', style: TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(
+                Icons.receipt_long_outlined,
+                color: homeController.currentNavIndex.value == 1
+                    ? const Color(0xFF006847)
+                    : Colors.black54,
+              ),
+              title: const Text('Active Orders'),
               selected: homeController.currentNavIndex.value == 1,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              selectedColor: const Color(0xFF006847),
               onTap: () {
                 homeController.changeTab(1);
                 Get.back();
               },
             )),
 
-            // Menu 3: History (Index 2)
+            // Menu 2: Order History
             Obx(() => ListTile(
-              leading: Icon(Icons.history_rounded, color: homeController.currentNavIndex.value == 2 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Order History', style: TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(
+                Icons.history_rounded,
+                color: homeController.currentNavIndex.value == 2
+                    ? const Color(0xFF006847)
+                    : Colors.black54,
+              ),
+              title: const Text('Order History'),
               selected: homeController.currentNavIndex.value == 2,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              selectedColor: const Color(0xFF006847),
               onTap: () {
                 homeController.changeTab(2);
                 Get.back();
               },
             )),
 
-            // Menu 4: Expense (Index 3)
+            // Menu 3: Expense Management
             Obx(() => ListTile(
-              leading: Icon(Icons.payments_rounded, color: homeController.currentNavIndex.value == 3 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Expense', style: TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(
+                Icons.account_balance_wallet_outlined,
+                color: homeController.currentNavIndex.value == 3
+                    ? const Color(0xFF006847)
+                    : Colors.black54,
+              ),
+              title: const Text('Expense Management'),
               selected: homeController.currentNavIndex.value == 3,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              selectedColor: const Color(0xFF006847),
               onTap: () {
                 homeController.changeTab(3);
                 Get.back();
               },
             )),
 
-            // FIX SAKTI: Menu 5 - Laporan Shift (Index 4 untuk FR-K10)
+            // Menu 4: Laporan Shift
             Obx(() => ListTile(
-              leading: Icon(Icons.assessment_rounded, color: homeController.currentNavIndex.value == 4 ? const Color(0xFF006847) : Colors.grey),
-              title: const Text('Laporan Shift', style: TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(
+                Icons.summarize_outlined,
+                color: homeController.currentNavIndex.value == 4
+                    ? const Color(0xFF006847)
+                    : Colors.black54,
+              ),
+              title: const Text('Laporan Shift'),
               selected: homeController.currentNavIndex.value == 4,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
+              selectedColor: const Color(0xFF006847),
               onTap: () {
-                homeController.changeTab(4); // Arahkan ke index laporan shift
+                homeController.changeTab(4);
                 Get.back();
               },
             )),
 
-            const Spacer(),
             const Divider(),
+
+            // Menu Logout
             ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              onTap: () => Get.back(),
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text('Logout', style: TextStyle(color: Colors.redAccent)),
+              onTap: () {
+                Get.back();
+                homeController.logout();
+              },
             ),
-            const SizedBox(height: 20),
           ],
         ),
       ),
 
-      // 3. REAKTIF NAVIGATION ROUTER BODY (Penghubung Antar View Modul)
+      // 3. REAKTIF NAVIGATION ROUTER BODY
       body: Obx(() {
         switch (homeController.currentNavIndex.value) {
-          case 0:
-            return _buildMenuCatalog(context);
-          case 1:
-            return const ActiveOrdersView();
-          case 2:
-            return const HistoryView();
-          case 3:
-            return const ExpensesView();
-          case 4:
-            return const ShiftView(); // Menampilkan modul Ringkasan Shift & Handover
-          default:
-            return const Center(child: Text('Page Not Found'));
+          case 0: return _buildMenuCatalog(context);
+          case 1: return const ActiveOrdersView();
+          case 2: return const HistoryView();
+          case 3: return const ExpensesView();
+          case 4: return const ShiftView();
+          default: return const Center(child: Text('Page Not Found'));
         }
       }),
 
-      // 4. FLOATING ACTION BUTTON
+      // 4. FLOATING ACTION BUTTON (Hanya Tampil di Menu Catalog)
       floatingActionButton: Obx(() {
         return homeController.currentNavIndex.value == 0
             ? FloatingActionButton(
@@ -189,7 +259,10 @@ class HomeView extends GetView<HomeController> {
                 filled: true,
                 fillColor: const Color(0xFFF1F3F4),
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
@@ -215,7 +288,14 @@ class HomeView extends GetView<HomeController> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Center(
-                          child: Text(cat, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontWeight: FontWeight.bold, fontSize: 14)),
+                          child: Text(
+                            cat,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -230,16 +310,27 @@ class HomeView extends GetView<HomeController> {
                 return const Center(child: CircularProgressIndicator(color: Color(0xFF006847)));
               }
               if (controller.filteredProducts.isEmpty) {
-                return const Center(child: Text('Menu tidak ditemukan, Gar.', style: TextStyle(color: Colors.grey)));
+                return const Center(
+                  child: Text('Menu tidak ditemukan, Gar.', style: TextStyle(color: Colors.grey)),
+                );
               }
               return GridView.builder(
                 padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 0.75, crossAxisSpacing: 14, mainAxisSpacing: 14),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.75,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                ),
                 itemCount: controller.filteredProducts.length,
                 itemBuilder: (context, index) {
                   final product = controller.filteredProducts[index];
                   return Container(
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFEAEAEA))),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFEAEAEA)),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -249,7 +340,10 @@ class HomeView extends GetView<HomeController> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFF1F3F4),
                               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                              image: DecorationImage(image: NetworkImage(product['image']), fit: BoxFit.cover),
+                              image: DecorationImage(
+                                image: NetworkImage(product['image']),
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),
@@ -258,26 +352,46 @@ class HomeView extends GetView<HomeController> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(product['name'], maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              Text(
+                                product['name'],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
                               const SizedBox(height: 4),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Rp ${product['price'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}',
-                                    style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold, fontSize: 14),
+                                    style: const TextStyle(
+                                      color: Color(0xFF006847),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                   GestureDetector(
                                     onTap: () {
                                       controller.openOrderModifier(product['name'], product['price']);
                                       Get.bottomSheet(
-                                        _buildOrderModifierSheet(context, product['id'], product['name'], product['image']),
+                                        _buildOrderModifierSheet(
+                                          context,
+                                          product['id'].toString(),
+                                          product['name'],
+                                          product['image'],
+                                        ),
                                         isScrollControlled: true,
                                         backgroundColor: Colors.white,
-                                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                        ),
                                       );
                                     },
-                                    child: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF006847), size: 24),
+                                    child: const Icon(
+                                      Icons.add_circle_outline_rounded,
+                                      color: Color(0xFF006847),
+                                      size: 24,
+                                    ),
                                   )
                                 ],
                               ),
@@ -309,13 +423,28 @@ class HomeView extends GetView<HomeController> {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  GestureDetector(onTap: () => Get.back(), child: const Icon(Icons.close, color: Colors.black87)),
-                  const Expanded(child: Text('Order Modifier', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                  GestureDetector(
+                    onTap: () => Get.back(),
+                    child: const Icon(Icons.close, color: Colors.black87),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Order Modifier',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
                   const SizedBox(width: 24),
                 ],
               ),
             ),
-            Container(height: 200, width: double.infinity, decoration: BoxDecoration(image: DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover))),
+            Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                image: DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -323,7 +452,10 @@ class HomeView extends GetView<HomeController> {
                 children: [
                   Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
                   const SizedBox(height: 4),
-                  Text('Rich espresso with steamed milk and a thin layer of foam.', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                  Text(
+                    'Pilihan kustomisasi pesanan.',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
                   const SizedBox(height: 20),
                   const Text('Temperature', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 10),
@@ -338,16 +470,29 @@ class HomeView extends GetView<HomeController> {
                               onPressed: () => controller.selectedVariant.value = variant,
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: isSelected ? const Color(0xFFE8F5E9) : Colors.white,
-                                side: BorderSide(color: isSelected ? const Color(0xFF006847) : Colors.grey[300]!, width: isSelected ? 1.5 : 1),
+                                side: BorderSide(
+                                  color: isSelected ? const Color(0xFF006847) : Colors.grey[300]!,
+                                  width: isSelected ? 1.5 : 1,
+                                ),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(variant == 'Hot' ? Icons.thermostat_rounded : Icons.ac_unit_rounded, color: isSelected ? const Color(0xFF006847) : Colors.grey[600], size: 16),
+                                  Icon(
+                                    variant == 'Hot' ? Icons.thermostat_rounded : Icons.ac_unit_rounded,
+                                    color: isSelected ? const Color(0xFF006847) : Colors.grey[600],
+                                    size: 16,
+                                  ),
                                   const SizedBox(width: 6),
-                                  Text(variant, style: TextStyle(color: isSelected ? const Color(0xFF006847) : Colors.black87, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    variant,
+                                    style: TextStyle(
+                                      color: isSelected ? const Color(0xFF006847) : Colors.black87,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -361,7 +506,10 @@ class HomeView extends GetView<HomeController> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Sugar Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                      Obx(() => Text(controller.sugarLevelText, style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold))),
+                      Obx(() => Text(
+                        controller.sugarLevelText,
+                        style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold),
+                      )),
                     ],
                   ),
                   Obx(() => Slider(
@@ -394,10 +542,13 @@ class HomeView extends GetView<HomeController> {
                   TextField(
                     controller: controller.notesController,
                     decoration: InputDecoration(
-                      hintText: 'E.g. Extra hot, no lid, etc.',
+                      hintText: 'E.g. Extra hot, no lid, dll.',
                       hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF006847))),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF006847)),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -416,17 +567,20 @@ class HomeView extends GetView<HomeController> {
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          final cartController = Get.find<CartController>();
-                          List<String> activeAddons = [];
-                          if (controller.extraFoamCount.value > 0) activeAddons.add("Extra Foam (x${controller.extraFoamCount.value})");
-                          if (controller.vanillaSyrupCount.value > 0) activeAddons.add("Vanilla Syrup (x${controller.vanillaSyrupCount.value})");
-                          String addonsText = activeAddons.isEmpty ? "No Add-ons" : activeAddons.join(", ");
-
-                          cartController.addToCart(menuId: menuId, name: name, variant: controller.selectedVariant.value, sugar: controller.sugarLevelText, addons: addonsText, price: controller.calculatedTotalPrice, image: imageUrl);
                           Get.back();
-                          Get.snackbar('Berhasil', '$name berhasil dimasukkan ke keranjang belanja.', snackPosition: SnackPosition.TOP, backgroundColor: const Color(0xFF006847), colorText: Colors.white);
+                          Get.snackbar(
+                            'Berhasil',
+                            '$name berhasil dimasukkan ke keranjang belanja.',
+                            snackPosition: SnackPosition.TOP,
+                            backgroundColor: const Color(0xFF006847),
+                            colorText: Colors.white,
+                          );
                         },
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF006847), padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF006847),
+                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
                         child: const Text('Add Order', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       )
                     ],
@@ -443,7 +597,10 @@ class HomeView extends GetView<HomeController> {
   Widget _buildAddonRow(String title, String priceLabel, RxInt counter) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFFF8F9FA), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -452,11 +609,25 @@ class HomeView extends GetView<HomeController> {
             children: [
               Text(priceLabel, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
               const SizedBox(width: 14),
-              GestureDetector(onTap: () { if (counter.value > 0) counter.value--; }, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Color(0xFFEFEFEF), shape: BoxShape.circle), child: const Icon(Icons.remove, size: 14, color: Colors.black87))),
+              GestureDetector(
+                onTap: () { if (counter.value > 0) counter.value--; },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: Color(0xFFEFEFEF), shape: BoxShape.circle),
+                  child: const Icon(Icons.remove, size: 14, color: Colors.black87),
+                ),
+              ),
               const SizedBox(width: 12),
               Obx(() => Text('${counter.value}', style: const TextStyle(fontWeight: FontWeight.bold))),
               const SizedBox(width: 12),
-              GestureDetector(onTap: () => counter.value++, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Color(0xFFEFEFEF), shape: BoxShape.circle), child: const Icon(Icons.add, size: 14, color: Colors.black87))),
+              GestureDetector(
+                onTap: () => counter.value++,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: Color(0xFFEFEFEF), shape: BoxShape.circle),
+                  child: const Icon(Icons.add, size: 14, color: Colors.black87),
+                ),
+              ),
             ],
           )
         ],

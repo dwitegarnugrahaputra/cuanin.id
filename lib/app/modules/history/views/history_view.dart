@@ -1,233 +1,157 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/history_controller.dart';
-import '../../home/controllers/home_controller.dart'; // Import HomeController untuk ngatur drawer reaktif
 
 class HistoryView extends GetView<HistoryController> {
   const HistoryView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Pastikan kedua controller ter-inject dengan benar
     final HistoryController historyController = Get.put(HistoryController());
-    final HomeController homeController = Get.find<HomeController>(); // Menemukan instance HomeController global
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+    // Scaffold, AppBar, & Drawer DIHAPUS. Hanya me-return konten utamanya (Column).
+    return Column(
+      children: [
+        // Search Bar & Filter Row
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              TextField(
+                controller: historyController.searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search order ID...',
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  fillColor: Colors.white,
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // Catatan: filter "Table" dihapus total — skema database
+                  // tidak punya kolom nomor meja. Filter status sekarang
+                  // benar-benar fungsional lewat dropdown di bawah.
+                  Expanded(child: _buildStatusFilterDropdown(historyController)),
+                ],
+              ),
+            ],
+          ),
+        ),
 
-      // 1. APP BAR DENGAN TOMBOL HAMBURGER (FR-K08)
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        // FIX: Mengaktifkan ikon hamburger untuk membuka Drawer utama
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () {
-              Scaffold.of(context).openDrawer(); // Membuka menu samping
+        // List History Transaksi
+        Expanded(
+          child: Obx(() {
+            if (historyController.isLoading.value) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF006847)),
+              );
+            }
+
+            final transactions = historyController.filteredTransactions;
+
+            return RefreshIndicator(
+              color: const Color(0xFF006847),
+              onRefresh: historyController.fetchHistory,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  const SizedBox(height: 8),
+                  const Text(
+                    'RECENT TRANSACTIONS',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  if (transactions.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 80),
+                      child: Center(
+                        child: Text(
+                          'Belum ada transaksi yang cocok.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    ...transactions.map((tx) => _buildOrderCard(context, historyController, tx)),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  // Dropdown filter status, menggantikan badge "Status 🔽" dan "Table 🔽"
+  // statis yang sebelumnya tidak berfungsi.
+  Widget _buildStatusFilterDropdown(HistoryController historyController) {
+    return Obx(() {
+      final current = historyController.selectedStatusFilter.value;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: current,
+            isExpanded: true,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF006847)),
+            items: historyController.statusOptions.map((opt) {
+              return DropdownMenuItem<String>(
+                value: opt['value'],
+                child: Text(
+                  opt['label']!,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) historyController.setStatusFilter(value);
             },
           ),
         ),
-        title: const Text(
-          'Order History',
-          style: TextStyle(color: Color(0xFF2D2D2D), fontWeight: FontWeight.bold, fontSize: 20),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today, color: Color(0xFF006847)),
-            onPressed: () {},
-          ),
-        ],
-      ),
-
-      // 2. HAMBURGER MENU SYSTEM (DRAWER) - Harus sama persis dengan yang ada di HomeView
-      drawer: Drawer(
-        child: Column(
-          children: [
-            UserAccountsDrawerHeader(
-              decoration: const BoxDecoration(
-                color: Color(0xFF006847), // Hijau Cuanin
-              ),
-              currentAccountPicture: const CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Color(0xFF006847), size: 40),
-              ),
-              accountName: const Text(
-                'Kasir Active',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              accountEmail: const Text('kasir@cuanin.id'),
-            ),
-
-            // Item Menu 1: Katalog Menu
-            Obx(() => ListTile(
-              leading: Icon(
-                  Icons.local_cafe_rounded,
-                  color: homeController.currentNavIndex.value == 0 ? const Color(0xFF006847) : Colors.grey
-              ),
-              title: const Text('Menu Catalog', style: TextStyle(fontWeight: FontWeight.bold)),
-              selected: homeController.currentNavIndex.value == 0,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
-              onTap: () {
-                homeController.changeTab(0);
-                Get.back(); // Tutup drawer
-              },
-            )),
-
-            // Item Menu 2: Orders Aktif
-            Obx(() => ListTile(
-              leading: Icon(
-                  Icons.assignment_rounded,
-                  color: homeController.currentNavIndex.value == 1 ? const Color(0xFF006847) : Colors.grey
-              ),
-              title: const Text('Active Orders', style: TextStyle(fontWeight: FontWeight.bold)),
-              selected: homeController.currentNavIndex.value == 1,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
-              onTap: () {
-                homeController.changeTab(1);
-                Get.back();
-              },
-            )),
-
-            // Item Menu 3: History Transaksi (Sedang Aktif)
-            Obx(() => ListTile(
-              leading: Icon(
-                  Icons.history_rounded,
-                  color: homeController.currentNavIndex.value == 2 ? const Color(0xFF006847) : Colors.grey
-              ),
-              title: const Text('Order History', style: TextStyle(fontWeight: FontWeight.bold)),
-              selected: homeController.currentNavIndex.value == 2,
-              selectedTileColor: const Color(0xFF006847).withOpacity(0.1),
-              onTap: () {
-                homeController.changeTab(2);
-                Get.back();
-              },
-            )),
-
-            const Spacer(),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout_rounded, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              onTap: () {
-                Get.back();
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-
-      // 3. KONTEN LAYOUT UTAMA (Hasil Stitch AI Lu)
-      body: Column(
-        children: [
-          // Search Bar & Filter Row
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search order ID or table...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    fillColor: Colors.white,
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildFilterBadge('All Time', isActive: true),
-                    const SizedBox(width: 8),
-                    _buildFilterBadge('Status 🔽'),
-                    const SizedBox(width: 8),
-                    _buildFilterBadge('Table 🔽'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // List History Transaksi
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                const Text(
-                  'RECENT TRANSACTIONS',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-
-                _buildOrderCard(
-                  context,
-                  orderId: 'Order #88291',
-                  time: 'Oct 24, 2023 • Table 14',
-                  price: 'Rp 42.500',
-                  isCompleted: true,
-                  onCancel: () => _showCancelBottomSheet(context, historyController, 'Order #88291'),
-                ),
-
-                _buildOrderCard(
-                  context,
-                  orderId: 'Order #88285',
-                  time: 'Oct 24, 2023 • Table 02',
-                  price: 'Rp 128.000',
-                  isCompleted: true,
-                  onCancel: () => _showCancelBottomSheet(context, historyController, 'Order #88285'),
-                ),
-
-                _buildOrderCard(
-                  context,
-                  orderId: 'Order #88274',
-                  time: 'Oct 23, 2023 • Table 05',
-                  price: 'Rp 15.900',
-                  isCompleted: false,
-                  onCancel: null,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterBadge(String text, {bool isActive = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF006847) : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isActive ? Colors.transparent : Colors.grey.shade300),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isActive ? Colors.white : Colors.black87,
-          fontWeight: FontWeight.w500,
-          fontSize: 13,
-        ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildOrderCard(
-      BuildContext context, {
-        required String orderId,
-        required String time,
-        required String price,
-        required bool isCompleted,
-        required VoidCallback? onCancel,
-      }) {
+      BuildContext context,
+      HistoryController historyController,
+      Map<String, dynamic> tx,
+      ) {
+    final String status = (tx['status'] ?? '').toString().toLowerCase();
+    final bool isCompleted = status == 'completed';
+    final bool isCancelled = status == 'cancelled';
+    final bool isPending = status == 'pending';
+
+    final String orderId = 'Order #${tx['invoice_number'] ?? '-'}';
+    final String dateLabel = historyController.formatDate(tx['created_at']?.toString());
+    final String price = historyController.formatRupiah(tx['total_amount']);
+
+    final Color statusColor = isCancelled
+        ? Colors.red
+        : isPending
+        ? Colors.amber[800]!
+        : const Color(0xFF006847);
+
+    final String statusLabel = isCancelled
+        ? 'Cancelled'
+        : isPending
+        ? 'Pending'
+        : 'Completed';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      color: Colors.white, // FIX: Sudah menggunakan 'color' agar tidak eror
+      color: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -238,10 +162,10 @@ class HistoryView extends GetView<HistoryController> {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: isCompleted ? const Color(0xFF006847).withOpacity(0.1) : Colors.red.withOpacity(0.1),
+              backgroundColor: statusColor.withOpacity(0.1),
               child: Icon(
-                isCompleted ? Icons.receipt_long : Icons.block,
-                color: isCompleted ? const Color(0xFF006847) : Colors.red,
+                isCancelled ? Icons.block : Icons.receipt_long,
+                color: statusColor,
               ),
             ),
             const SizedBox(width: 16),
@@ -254,22 +178,22 @@ class HistoryView extends GetView<HistoryController> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      decoration: isCompleted ? TextDecoration.none : TextDecoration.lineThrough,
+                      decoration: isCancelled ? TextDecoration.lineThrough : TextDecoration.none,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(time, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(dateLabel, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: isCompleted ? const Color(0xFF006847).withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                      color: statusColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      isCompleted ? 'Completed' : 'Cancelled',
+                      statusLabel,
                       style: TextStyle(
-                        color: isCompleted ? const Color(0xFF006847) : Colors.red,
+                        color: statusColor,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -283,9 +207,13 @@ class HistoryView extends GetView<HistoryController> {
               children: [
                 Text(price, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 12),
-                if (isCompleted && onCancel != null)
+                // Cancel hanya tersedia untuk transaksi yang masih 'completed'
+                // (sesuai logika asli) — pending/cancelled tidak ditawari cancel
+                // dari sini, supaya tidak tumpang tindih dengan flow "Finish Order"
+                // di Active Orders.
+                if (isCompleted)
                   InkWell(
-                    onTap: onCancel,
+                    onTap: () => _showCancelBottomSheet(context, historyController, tx),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -306,7 +234,14 @@ class HistoryView extends GetView<HistoryController> {
     );
   }
 
-  void _showCancelBottomSheet(BuildContext context, HistoryController historyController, String orderId) {
+  void _showCancelBottomSheet(
+      BuildContext context,
+      HistoryController historyController,
+      Map<String, dynamic> tx,
+      ) {
+    final String orderId = tx['id'].toString();
+    final String invoiceLabel = 'Order #${tx['invoice_number'] ?? '-'}';
+
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(20),
@@ -320,7 +255,7 @@ class HistoryView extends GetView<HistoryController> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                "Batalkan $orderId",
+                "Batalkan $invoiceLabel",
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
               ),
               const SizedBox(height: 4),
