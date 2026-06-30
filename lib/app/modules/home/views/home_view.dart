@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/home_controller.dart';
 import '../../cart/views/cart_view.dart';
+import '../../cart/controllers/cart_controller.dart';
 import '../../history/views/history_view.dart';
 import '../../orders/views/orders_view.dart';
 import '../../expenses/views/expenses_view.dart';
@@ -13,6 +14,7 @@ class HomeView extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     final HomeController homeController = Get.put(HomeController());
+    final CartController cartController = Get.put(CartController(), permanent: true);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -52,10 +54,41 @@ class HomeView extends GetView<HomeController> {
             centerTitle: homeController.currentNavIndex.value != 0,
             actions: [
               if (homeController.currentNavIndex.value == 0)
-                IconButton(
-                  icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
-                  onPressed: () => Get.to(() => const CartView()),
-                ),
+                Obx(() {
+                  final count = cartController.totalItemCount;
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black87),
+                        onPressed: () => Get.to(() => const CartView()),
+                      ),
+                      if (count > 0)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF006847),
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : count.toString(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                }),
               if (homeController.currentNavIndex.value == 1)
                 IconButton(
                   icon: const Icon(Icons.home_outlined, color: Colors.black87),
@@ -225,18 +258,9 @@ class HomeView extends GetView<HomeController> {
         }
       }),
 
-      // 4. FLOATING ACTION BUTTON (Hanya Tampil di Menu Catalog)
-      floatingActionButton: Obx(() {
-        return homeController.currentNavIndex.value == 0
-            ? FloatingActionButton(
-          onPressed: () => Get.to(() => const CartView()),
-          backgroundColor: const Color(0xFF006847),
-          shape: const CircleBorder(),
-          elevation: 4,
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
-        )
-            : const SizedBox.shrink();
-      }),
+      // 4. FLOATING ACTION BUTTON dihapus — tombol (+) hijau pojok kanan
+      // bawah tidak diperlukan lagi karena setiap kartu produk sudah punya
+      // tombol tambah (ikon "+") sendiri-sendiri di GridView.
     );
   }
 
@@ -311,7 +335,7 @@ class HomeView extends GetView<HomeController> {
               }
               if (controller.filteredProducts.isEmpty) {
                 return const Center(
-                  child: Text('Menu tidak ditemukan, Gar.', style: TextStyle(color: Colors.grey)),
+                  child: Text('Menu tidak ditemukan.', style: TextStyle(color: Colors.grey)),
                 );
               }
               return GridView.builder(
@@ -372,7 +396,11 @@ class HomeView extends GetView<HomeController> {
                                   ),
                                   GestureDetector(
                                     onTap: () {
-                                      controller.openOrderModifier(product['name'], product['price']);
+                                      controller.openOrderModifier(
+                                        product['name'],
+                                        product['price'],
+                                        product['category'],
+                                      );
                                       Get.bottomSheet(
                                         _buildOrderModifierSheet(
                                           context,
@@ -452,91 +480,95 @@ class HomeView extends GetView<HomeController> {
                 children: [
                   Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
                   const SizedBox(height: 4),
-                  Text(
-                    'Pilihan kustomisasi pesanan.',
+                  Obx(() => Text(
+                    controller.isDrinkCategory
+                        ? 'Pilihan kustomisasi pesanan.'
+                        : 'Tambahkan catatan khusus jika diperlukan.',
                     style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                  ),
+                  )),
                   const SizedBox(height: 20),
-                  const Text('Temperature', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: ['Hot', 'Iced'].map((variant) {
-                      return Obx(() {
-                        bool isSelected = controller.selectedVariant.value == variant;
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: OutlinedButton(
-                              onPressed: () => controller.selectedVariant.value = variant,
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: isSelected ? const Color(0xFFE8F5E9) : Colors.white,
-                                side: BorderSide(
-                                  color: isSelected ? const Color(0xFF006847) : Colors.grey[300]!,
-                                  width: isSelected ? 1.5 : 1,
-                                ),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    variant == 'Hot' ? Icons.thermostat_rounded : Icons.ac_unit_rounded,
-                                    color: isSelected ? const Color(0xFF006847) : Colors.grey[600],
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    variant,
-                                    style: TextStyle(
-                                      color: isSelected ? const Color(0xFF006847) : Colors.black87,
-                                      fontWeight: FontWeight.bold,
+                  Obx(() {
+                    if (!controller.isDrinkCategory) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Temperature', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: ['Hot', 'Iced'].map((variant) {
+                            return Obx(() {
+                              bool isSelected = controller.selectedVariant.value == variant;
+                              return Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: OutlinedButton(
+                                    onPressed: () => controller.selectedVariant.value = variant,
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: isSelected ? const Color(0xFFE8F5E9) : Colors.white,
+                                      side: BorderSide(
+                                        color: isSelected ? const Color(0xFF006847) : Colors.grey[300]!,
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          variant == 'Hot' ? Icons.thermostat_rounded : Icons.ac_unit_rounded,
+                                          color: isSelected ? const Color(0xFF006847) : Colors.grey[600],
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          variant,
+                                          style: TextStyle(
+                                            color: isSelected ? const Color(0xFF006847) : Colors.black87,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
+                                ),
+                              );
+                            });
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Sugar Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            Obx(() => Text(
+                              controller.sugarLevelText,
+                              style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold),
+                            )),
+                          ],
+                        ),
+                        Obx(() => Slider(
+                          value: controller.sugarLevel.value,
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 4,
+                          activeColor: const Color(0xFF006847),
+                          inactiveColor: Colors.grey[300],
+                          onChanged: (val) => controller.sugarLevel.value = val,
+                        )),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: ['0%', '25%', '50%', '75%', '100%'].map((lbl) {
+                              return Text(lbl, style: TextStyle(fontSize: 11, color: Colors.grey[500]));
+                            }).toList(),
                           ),
-                        );
-                      });
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Sugar Level', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                      Obx(() => Text(
-                        controller.sugarLevelText,
-                        style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold),
-                      )),
-                    ],
-                  ),
-                  Obx(() => Slider(
-                    value: controller.sugarLevel.value,
-                    min: 0.0,
-                    max: 1.0,
-                    divisions: 4,
-                    activeColor: const Color(0xFF006847),
-                    inactiveColor: Colors.grey[300],
-                    onChanged: (val) => controller.sugarLevel.value = val,
-                  )),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: ['0%', '25%', '50%', '75%', '100%'].map((lbl) {
-                        return Text(lbl, style: TextStyle(fontSize: 11, color: Colors.grey[500]));
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Add-ons', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  const SizedBox(height: 12),
-                  _buildAddonRow('Extra Foam', '+Rp 5.000', controller.extraFoamCount),
-                  const SizedBox(height: 10),
-                  _buildAddonRow('Vanilla Syrup', '+Rp 8.000', controller.vanillaSyrupCount),
-                  const SizedBox(height: 24),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    );
+                  }),
                   const Text('Special Notes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 8),
                   TextField(
@@ -567,6 +599,18 @@ class HomeView extends GetView<HomeController> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          final cartController = Get.find<CartController>();
+
+                          cartController.addToCart(
+                            menuId: menuId,
+                            name: name,
+                            variant: controller.isDrinkCategory ? controller.selectedVariant.value : '-',
+                            sugar: controller.isDrinkCategory ? controller.sugarLevelText : '-',
+                            price: controller.calculatedTotalPrice,
+                            image: imageUrl,
+                            notes: controller.notesController.text.trim(),
+                          );
+
                           Get.back();
                           Get.snackbar(
                             'Berhasil',
@@ -594,44 +638,4 @@ class HomeView extends GetView<HomeController> {
     );
   }
 
-  Widget _buildAddonRow(String title, String priceLabel, RxInt counter) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          Row(
-            children: [
-              Text(priceLabel, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-              const SizedBox(width: 14),
-              GestureDetector(
-                onTap: () { if (counter.value > 0) counter.value--; },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Color(0xFFEFEFEF), shape: BoxShape.circle),
-                  child: const Icon(Icons.remove, size: 14, color: Colors.black87),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Obx(() => Text('${counter.value}', style: const TextStyle(fontWeight: FontWeight.bold))),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () => counter.value++,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Color(0xFFEFEFEF), shape: BoxShape.circle),
-                  child: const Icon(Icons.add, size: 14, color: Colors.black87),
-                ),
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
 }

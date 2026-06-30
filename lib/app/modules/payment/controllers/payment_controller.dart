@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cuaninkasir/app/modules/cart/controllers/cart_controller.dart';
+import '../../../data/session_controller.dart';
 
 class PaymentController extends GetxController {
   // Data reaktif utama transaksi dari halaman Cart
@@ -67,10 +68,13 @@ class PaymentController extends GetxController {
 
     Future.delayed(const Duration(seconds: 2), () async {
       final invoiceNo = 'INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
-      bool isSaved = await _saveTransactionToDatabase('QRIS', invoiceNo);
-      
-      Get.back(); // Tutup loading dialog
-      
+      bool isSaved = false;
+      try {
+        isSaved = await _saveTransactionToDatabase('QRIS', invoiceNo);
+      } finally {
+        Get.back(); // Tutup loading dialog — selalu jalan walau ada error tak terduga
+      }
+
       if (isSaved) {
         Get.offAllNamed('/success', arguments: {
           'amount': totalAmount.value,
@@ -95,11 +99,14 @@ class PaymentController extends GetxController {
     }
 
     Get.dialog(const Center(child: CircularProgressIndicator(color: Color(0xFF006847))), barrierDismissible: false);
-    
+
     final invoiceNo = 'CSH-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
-    bool isSaved = await _saveTransactionToDatabase('Cash', invoiceNo);
-    
-    Get.back(); // Tutup loading dialog
+    bool isSaved = false;
+    try {
+      isSaved = await _saveTransactionToDatabase('Cash', invoiceNo);
+    } finally {
+      Get.back(); // Tutup loading dialog — selalu jalan walau ada error tak terduga
+    }
 
     if (isSaved) {
       Get.offAllNamed('/success', arguments: {
@@ -115,17 +122,29 @@ class PaymentController extends GetxController {
     try {
       final supabase = Supabase.instance.client;
       final cartController = Get.find<CartController>();
-      final cashierUid = supabase.auth.currentSession?.user.id;
-      
+      final session = Get.find<SessionController>();
+
+      if (!session.isLoggedIn) {
+        Get.snackbar('Error Transaksi', 'Sesi staf tidak ditemukan, silakan login ulang.',
+            backgroundColor: Colors.red, colorText: Colors.white);
+        return false;
+      }
+
       // 1. Simpan Transaksi Induk
       final salesRes = await supabase.from('sales_transactions').insert({
+        'user_id': session.ownerUserId.value, // wajib (NOT NULL) — owner akun/tenant pemilik cafe
         'invoice_number': invoiceNo,
         'customer_name': 'Walk-in Customer',
         'total_amount': totalAmount.value,
         'payment_method': paymentMethod,
         'status': 'SUCCESS',
-        'served_by': cashierUid,
-      }).select().single();
+        'served_by': session.staffId.value, // staf/kasir yang memproses transaksi ini
+      }).select().single().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw Exception(
+          'Timeout 10 detik saat insert ke sales_transactions. Kemungkinan diblokir RLS policy (auth.uid() null karena app tidak pakai Supabase Auth) atau koneksi internet bermasalah.',
+        ),
+      );
 
       final transactionId = salesRes['id'];
 
@@ -141,7 +160,10 @@ class PaymentController extends GetxController {
       }
 
       if (itemsToInsert.isNotEmpty) {
-        await supabase.from('transaction_items').insert(itemsToInsert);
+        await supabase.from('transaction_items').insert(itemsToInsert).timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw Exception('Timeout 10 detik saat insert ke transaction_items.'),
+        );
 
         // 3. FITUR RAHASIA: Pengurangan Stok Gudang Otomatis Berdasarkan Resep (Automated Inventory Deduction)
         for (var item in cartController.cartItems) {
@@ -150,7 +172,7 @@ class PaymentController extends GetxController {
 
           // Tarik komposisi resep untuk menu ini
           final recipes = await supabase.from('menu_recipes').select().eq('menu_id', menuId);
-          
+
           for (var recipe in recipes) {
             final String materialId = recipe['material_id'];
             final double neededPerCup = (recipe['quantity_needed'] as num).toDouble();
@@ -159,7 +181,7 @@ class PaymentController extends GetxController {
             // Ambil stok terbaru di gudang
             final rawMaterial = await supabase.from('raw_materials').select('current_stock').eq('id', materialId).single();
             final double currentStock = (rawMaterial['current_stock'] as num).toDouble();
-            
+
             // Update pemotongan stok
             await supabase.from('raw_materials').update({
               'current_stock': currentStock - totalDeduction
@@ -172,7 +194,10 @@ class PaymentController extends GetxController {
       orderId.value = invoiceNo;
       return true;
     } catch (e) {
-      Get.snackbar('Error Transaksi', 'Gagal memproses transaksi di Supabase: $e', backgroundColor: Colors.red, colorText: Colors.white);
+      // ignore: avoid_print
+      print('[PaymentController] Gagal simpan transaksi: $e');
+      Get.snackbar('Error Transaksi', 'Gagal memproses transaksi di Supabase: $e',
+          backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 6));
       return false;
     }
   }

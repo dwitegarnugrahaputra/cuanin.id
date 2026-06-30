@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../controllers/payment_controller.dart';
 
 class PaymentView extends GetView<PaymentController> {
@@ -90,14 +91,23 @@ class PaymentView extends GetView<PaymentController> {
                     Container(
                       width: 200,
                       height: 200,
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF1F3F4),
                         borderRadius: BorderRadius.circular(12),
-                        image: const DecorationImage(
-                          image: NetworkImage('https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg'),
-                          fit: BoxFit.contain,
-                        ),
                       ),
+                      child: Obx(() => QrImageView(
+                        // QR dummy/simulasi — bukan QRIS asli, cuma di-generate lokal
+                        // biar visual realistis tanpa tergantung koneksi internet.
+                        data: 'CUANINKASIR|${controller.orderId.value}|${controller.totalAmount.value}',
+                        version: QrVersions.auto,
+                        backgroundColor: Colors.white,
+                        eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Color(0xFF006847)),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: Colors.black,
+                        ),
+                      )),
                     ),
                     const SizedBox(height: 16),
                     Text(

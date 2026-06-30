@@ -35,7 +35,7 @@ class CartView extends GetView<CartController> {
         if (controller.cartItems.isEmpty) {
           return const Center(
             child: Text(
-              'Keranjang belanja kosong, Gar.',
+              'Keranjang belanja kosong.',
               style: TextStyle(color: Colors.grey, fontSize: 15),
             ),
           );
@@ -86,9 +86,20 @@ class CartView extends GetView<CartController> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${item['variant']} • ${item['sugar']} • ${item['addons']}',
+                                '${item['variant']} • ${item['sugar']}',
                                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
                               ),
+                              if ((item['notes'] as String?)?.isNotEmpty == true) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Note: ${item['notes']}',
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 10),
                               Text(
                                 formatRupiah(item['price'] * qty.value),

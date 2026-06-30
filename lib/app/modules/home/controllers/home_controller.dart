@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -67,40 +68,50 @@ class HomeController extends GetxController {
   final searchController = TextEditingController();
   var selectedVariant = 'Hot'.obs;
   var sugarLevel = 0.5.obs;
-  var extraFoamCount = 0.obs;
-  var vanillaSyrupCount = 0.obs;
   final notesController = TextEditingController();
   var currentBasePrice = 21000.obs;
+  var currentCategory = ''.obs;
+
+  // Kategori yang dianggap "minuman" dan butuh pilihan Temperature & Sugar
+  // Level. Selain kategori ini (mis. Food) modifier tsb disembunyikan.
+  static const List<String> drinkCategories = ['Coffee', 'Non-Coffee'];
+
+  bool get isDrinkCategory => drinkCategories.contains(currentCategory.value);
 
   var isLoading = false.obs;
   var allProducts = <Map<String, dynamic>>[].obs;
   var filteredProducts = <Map<String, dynamic>>[].obs;
+  StreamSubscription<List<Map<String, dynamic>>>? _menuSubscription;
 
   @override
   void onInit() {
     super.onInit();
     fetchUserProfile();
-    fetchMenus();
+    subscribeToMenus();
     searchController.addListener(() {
       filterDisplayProducts();
     });
   }
 
-  Future<void> fetchMenus() async {
-    try {
-      isLoading(true);
-      final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('menus')
-          .select()
-          .eq('is_available', true);
+  // Subscribe realtime ke tabel `menus` via Supabase Realtime (postgres_changes).
+  // Setiap kali owner nambah/edit/hapus menu lewat dashboard web, perubahan
+  // otomatis ke-push ke semua kasir yang lagi buka aplikasi — tanpa perlu
+  // refresh manual.
+  void subscribeToMenus() {
+    isLoading(true);
+    final supabase = Supabase.instance.client;
 
+    _menuSubscription = supabase
+        .from('menus')
+        .stream(primaryKey: ['id'])
+        .eq('is_available', true)
+        .listen((response) {
       final List<Map<String, dynamic>> fetchedProducts = [];
       for (var item in response) {
         fetchedProducts.add({
           'id': item['id'],
           'name': item['menu_name'] ?? 'Unknown',
-          'price': item['price'] ?? 0,
+          'price': (item['price'] as num).toInt(),
           'category': item['category'] ?? 'Others',
           'image': item['image_url'] ?? 'https://via.placeholder.com/150',
         });
@@ -108,11 +119,11 @@ class HomeController extends GetxController {
 
       allProducts.assignAll(fetchedProducts);
       filterDisplayProducts();
-    } catch (e) {
-      Get.snackbar('Error', 'Gagal mengambil data menu dari Supabase: $e');
-    } finally {
       isLoading(false);
-    }
+    }, onError: (e) {
+      isLoading(false);
+      Get.snackbar('Error', 'Gagal memantau perubahan menu secara realtime: $e');
+    });
   }
 
   void changeCategory(String category) {
@@ -143,18 +154,15 @@ class HomeController extends GetxController {
 
   int get calculatedTotalPrice {
     int total = currentBasePrice.value;
-    if (selectedVariant.value == 'Iced') total += 2000;
-    total += (extraFoamCount.value * 5000);
-    total += (vanillaSyrupCount.value * 8000);
+    if (isDrinkCategory && selectedVariant.value == 'Iced') total += 2000;
     return total;
   }
 
-  void openOrderModifier(String productName, int basePrice) {
+  void openOrderModifier(String productName, int basePrice, String category) {
     currentBasePrice.value = basePrice;
+    currentCategory.value = category;
     selectedVariant.value = 'Hot';
     sugarLevel.value = 0.5;
-    extraFoamCount.value = 0;
-    vanillaSyrupCount.value = 0;
     notesController.clear();
   }
 
@@ -168,6 +176,7 @@ class HomeController extends GetxController {
 
   @override
   void onClose() {
+    _menuSubscription?.cancel();
     searchController.dispose();
     notesController.dispose();
     super.onClose();

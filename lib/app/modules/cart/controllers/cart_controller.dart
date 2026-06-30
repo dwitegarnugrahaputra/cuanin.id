@@ -8,6 +8,15 @@ class CartController extends GetxController {
   // Biaya layanan konstan cafe cuanin.id
   final int serviceFee = 2000;
 
+  // Total kuantitas seluruh item di keranjang (buat badge angka di icon cart)
+  int get totalItemCount {
+    int total = 0;
+    for (var item in cartItems) {
+      total += (item['quantity'] as RxInt).value;
+    }
+    return total;
+  }
+
   // 1. Hitung Subtotal secara otomatis berdasarkan item yang beneran di-add kasir
   int get subtotal {
     int total = 0;
@@ -31,16 +40,16 @@ class CartController extends GetxController {
     required String name,
     required String variant,
     required String sugar,
-    required String addons,
     required int price,
     required String image,
+    String notes = '',
   }) {
-    // Cek duplikasi: Jika ada item dengan kustomisasi yang SAMA PERSIS, cukup akumulasi Qty
+    // Cek duplikasi: Jika ada item dengan kustomisasi yang SAMA PERSIS (termasuk notes), cukup akumulasi Qty
     int index = cartItems.indexWhere((item) =>
     item['name'] == name &&
         item['variant'] == variant &&
         item['sugar'] == sugar &&
-        item['addons'] == addons);
+        item['notes'] == notes);
 
     if (index != -1) {
       (cartItems[index]['quantity'] as RxInt).value++;
@@ -52,7 +61,7 @@ class CartController extends GetxController {
         'name': name,
         'variant': variant,
         'sugar': sugar,
-        'addons': addons,
+        'notes': notes,
         'price': price,
         'quantity': 1.obs,
         'image': image,
