@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:io'; // Ditambahkan untuk menghandle file gambar fisik
-import 'dart:convert'; // Ditambahkan untuk memproses JSON dari Gemini
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart'; // Package Kamera
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_generative_ai/google_generative_ai.dart'; // SDK Gemini resmi
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Untuk baca API key dari .env, bukan hardcode
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../../data/session_controller.dart'; // ← ambil data profil dari sesi login
 
 // ================= MODEL: SATU BARIS ITEM HASIL SCAN NOTA =================
 // Tiap baris nota (Beras Premium, Gula Pasir, dst) punya TextEditingController
@@ -51,6 +52,11 @@ class AdminDashboardController extends GetxController {
   var currentPageIndex = 0.obs;
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // --- STATE REAKTIF PROFIL DRAWER (dibaca dari SessionController) ---
+  var adminName = 'Loading...'.obs;
+  var adminRole = ''.obs;       // contoh: 'Admin Stock'
+  var adminImageUrl = ''.obs;   // foto profil (kalau ada)
 
   // --- TEXT EDITING CONTROLLER & REAKTIF QUERY ---
   final searchController = TextEditingController();
@@ -132,6 +138,29 @@ class AdminDashboardController extends GetxController {
   // Load di main.dart sebelum runApp(): await dotenv.load(fileName: ".env");
   final String _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
 
+  // --- AMBIL DATA PROFIL DARI SESSION (SAMA POLANYA DENGAN HomeController) ---
+  // Admin panel juga login lewat SessionController (validasi manual ke tabel staff),
+  // bukan Supabase Auth — jadi profil dibaca dari sana, bukan currentUser.
+  void fetchAdminProfile() {
+    try {
+      final session = Get.find<SessionController>();
+      if (!session.isLoggedIn) {
+        adminName.value = 'Tidak Login';
+        adminRole.value = '-';
+        return;
+      }
+      adminName.value = session.staffName.value;
+      // Role ditampilkan dari staffStatus (mis. "Admin Stock") atau fallback
+      adminRole.value = session.staffStatus.value.isNotEmpty
+          ? session.staffStatus.value
+          : 'Admin';
+      adminImageUrl.value = session.staffImageUrl.value;
+    } catch (e) {
+      adminName.value = 'Error';
+      adminRole.value = '-';
+    }
+  }
+
   Future<void> fetchRawMaterials() async {
     try {
       isLoading(true);
@@ -166,6 +195,7 @@ class AdminDashboardController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    fetchAdminProfile();
     fetchRawMaterials();
     searchController.addListener(() => searchQuery.value = searchController.text);
     wasteSearchController.addListener(() => wasteSearchQuery.value = wasteSearchController.text);

@@ -19,12 +19,24 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
           children: [
             UserAccountsDrawerHeader(
               decoration: const BoxDecoration(color: Color(0xFF006847)),
-              currentAccountPicture: const CircleAvatar(
-                backgroundColor: Color(0xFF1F2937),
-                child: Icon(Icons.person, color: Colors.white, size: 30),
-              ),
-              accountName: const Text('Tegar Nugraha', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              accountEmail: const Text('Admin Stock • cuanin.id', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              currentAccountPicture: Obx(() {
+                final url = controller.adminImageUrl.value;
+                return CircleAvatar(
+                  backgroundColor: const Color(0xFF1F2937),
+                  backgroundImage: url.isNotEmpty ? NetworkImage(url) : null,
+                  child: url.isEmpty
+                      ? const Icon(Icons.person, color: Colors.white, size: 30)
+                      : null,
+                );
+              }),
+              accountName: Obx(() => Text(
+                controller.adminName.value,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              )),
+              accountEmail: Obx(() => Text(
+                '${controller.adminRole.value} • cuanin.id',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              )),
             ),
 
             // Menu 1: Inventory (FR-A02)
