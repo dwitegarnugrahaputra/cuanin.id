@@ -16,9 +16,12 @@ class HomeController extends GetxController {
   var currentNavIndex = 0.obs;
 
   // --- ARRAY NAVIGATION PAGES ---
+  // CATATAN ROLLBACK: tab "Active Orders" sudah DIHAPUS. Alur order di app
+  // ini kembali sederhana: bayar -> transaksi langsung final (status
+  // 'SUCCESS'), tidak ada lagi tahap order aktif/menunggu diselesaikan.
+  // Modul orders & order_detail juga sudah tidak dipakai lagi.
   final List<Widget> pages = [
     const Center(child: Text("Menu Catalog Page")),
-    const Center(child: Text("Active Orders Page")),
     const HistoryView(),
   ];
 

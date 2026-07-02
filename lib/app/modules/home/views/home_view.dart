@@ -3,8 +3,7 @@ import 'package:get/get.dart';
 import '../controllers/home_controller.dart';
 import '../../cart/views/cart_view.dart';
 import '../../cart/controllers/cart_controller.dart';
-import '../../history/views/history_view.dart';
-import '../../orders/views/orders_view.dart';
+import '../../history/views/history_view.dart'; // Order History (bukan Active Orders — tetap dipakai)
 import '../../expenses/views/expenses_view.dart';
 import '../../shift/views/shift_view.dart';
 
@@ -24,12 +23,14 @@ class HomeView extends GetView<HomeController> {
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: Obx(() {
           String appBarTitle = 'CUAN.in';
+          // CATATAN ROLLBACK: tab "Active Orders" (index lama = 1) sudah
+          // dihapus. Index tab lain digeser maju satu: History jadi 1,
+          // Expenses jadi 2, Shift jadi 3.
           switch (homeController.currentNavIndex.value) {
             case 0: appBarTitle = 'Menu Catalog'; break;
-            case 1: appBarTitle = 'Active Orders'; break;
-            case 2: appBarTitle = 'Order History'; break;
-            case 3: appBarTitle = 'Expense Management'; break;
-            case 4: appBarTitle = 'Laporan Shift'; break;
+            case 1: appBarTitle = 'Order History'; break;
+            case 2: appBarTitle = 'Expense Management'; break;
+            case 3: appBarTitle = 'Laporan Shift'; break;
           }
 
           return AppBar(
@@ -89,22 +90,19 @@ class HomeView extends GetView<HomeController> {
                     ],
                   );
                 }),
+              // Icon "Home" bawaan tab Active Orders (index lama = 1) sudah
+              // dihapus bersama fiturnya.
               if (homeController.currentNavIndex.value == 1)
                 IconButton(
-                  icon: const Icon(Icons.home_outlined, color: Colors.black87),
-                  onPressed: () => homeController.changeTab(0),
+                  icon: const Icon(Icons.calendar_today, color: Color(0xFF006847)),
+                  onPressed: () {}, // TODO: Buka date picker (Order History)
                 ),
               if (homeController.currentNavIndex.value == 2)
-                IconButton(
-                  icon: const Icon(Icons.calendar_today, color: Color(0xFF006847)),
-                  onPressed: () {}, // TODO: Buka date picker
-                ),
-              if (homeController.currentNavIndex.value == 3)
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded, color: Color(0xFF006847)),
                   onPressed: () {}, // TODO: Refresh data expense
                 ),
-              if (homeController.currentNavIndex.value == 4) ...[
+              if (homeController.currentNavIndex.value == 3) ...[
                 IconButton(icon: const Icon(Icons.info_outline_rounded, color: Colors.black87), onPressed: () {}),
                 IconButton(icon: const Icon(Icons.print_outlined, color: Colors.black87), onPressed: () {}),
               ]
@@ -163,15 +161,20 @@ class HomeView extends GetView<HomeController> {
               },
             )),
 
-            // Menu 1: Active Orders
+            // Menu "Active Orders" DIHAPUS (fitur order aktif tidak
+            // dipakai lagi — transaksi langsung final saat pembayaran
+            // sukses). Menu di bawah ini index-nya sudah digeser maju
+            // satu dari sebelumnya.
+
+            // Menu 1: Order History
             Obx(() => ListTile(
               leading: Icon(
-                Icons.receipt_long_outlined,
+                Icons.history_rounded,
                 color: homeController.currentNavIndex.value == 1
                     ? const Color(0xFF006847)
                     : Colors.black54,
               ),
-              title: const Text('Active Orders'),
+              title: const Text('Order History'),
               selected: homeController.currentNavIndex.value == 1,
               selectedColor: const Color(0xFF006847),
               onTap: () {
@@ -180,15 +183,15 @@ class HomeView extends GetView<HomeController> {
               },
             )),
 
-            // Menu 2: Order History
+            // Menu 2: Expense Management
             Obx(() => ListTile(
               leading: Icon(
-                Icons.history_rounded,
+                Icons.account_balance_wallet_outlined,
                 color: homeController.currentNavIndex.value == 2
                     ? const Color(0xFF006847)
                     : Colors.black54,
               ),
-              title: const Text('Order History'),
+              title: const Text('Expense Management'),
               selected: homeController.currentNavIndex.value == 2,
               selectedColor: const Color(0xFF006847),
               onTap: () {
@@ -197,36 +200,19 @@ class HomeView extends GetView<HomeController> {
               },
             )),
 
-            // Menu 3: Expense Management
+            // Menu 3: Laporan Shift
             Obx(() => ListTile(
               leading: Icon(
-                Icons.account_balance_wallet_outlined,
+                Icons.summarize_outlined,
                 color: homeController.currentNavIndex.value == 3
                     ? const Color(0xFF006847)
                     : Colors.black54,
               ),
-              title: const Text('Expense Management'),
+              title: const Text('Laporan Shift'),
               selected: homeController.currentNavIndex.value == 3,
               selectedColor: const Color(0xFF006847),
               onTap: () {
                 homeController.changeTab(3);
-                Get.back();
-              },
-            )),
-
-            // Menu 4: Laporan Shift
-            Obx(() => ListTile(
-              leading: Icon(
-                Icons.summarize_outlined,
-                color: homeController.currentNavIndex.value == 4
-                    ? const Color(0xFF006847)
-                    : Colors.black54,
-              ),
-              title: const Text('Laporan Shift'),
-              selected: homeController.currentNavIndex.value == 4,
-              selectedColor: const Color(0xFF006847),
-              onTap: () {
-                homeController.changeTab(4);
                 Get.back();
               },
             )),
@@ -248,12 +234,13 @@ class HomeView extends GetView<HomeController> {
 
       // 3. REAKTIF NAVIGATION ROUTER BODY
       body: Obx(() {
+        // CATATAN ROLLBACK: case Active Orders (dulu index 1) sudah
+        // dihapus. Index tab lain digeser maju satu.
         switch (homeController.currentNavIndex.value) {
           case 0: return _buildMenuCatalog(context);
-          case 1: return const ActiveOrdersView();
-          case 2: return const HistoryView();
-          case 3: return const ExpensesView();
-          case 4: return const ShiftView();
+          case 1: return const HistoryView();
+          case 2: return const ExpensesView();
+          case 3: return const ShiftView();
           default: return const Center(child: Text('Page Not Found'));
         }
       }),

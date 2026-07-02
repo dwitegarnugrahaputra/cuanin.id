@@ -118,6 +118,11 @@ class PaymentController extends GetxController {
   }
 
   // Helper Simpan ke Supabase
+  //
+  // CATATAN ROLLBACK: fitur "Active Orders" (order pending -> checklist
+  // item -> completed) sudah DIHAPUS. Transaksi kembali langsung final
+  // begitu pembayaran sukses — konsisten dengan dashboard cuaninowner
+  // yang membaca status 'SUCCESS' sebagai transaksi selesai.
   Future<bool> _saveTransactionToDatabase(String paymentMethod, String invoiceNo) async {
     try {
       final supabase = Supabase.instance.client;
@@ -130,27 +135,16 @@ class PaymentController extends GetxController {
         return false;
       }
 
-      // 1. Simpan Transaksi Induk
-      //
-      // PENTING: status di sini WAJIB 'pending', BUKAN 'SUCCESS'.
-      // 'pending' artinya order baru masuk & masih dalam proses dibikin
-      // (munculnya di tab Active Orders). Status 'SUCCESS' sebelumnya
-      // bikin OrdersController.fetchActiveOrders() (yang filter
-      // eq('status', 'pending')) tidak pernah menemukan order ini —
-      // makanya Active Orders selalu kosong walau transaksi berhasil
-      // disimpan ke database.
-      //
-      // 'SUCCESS'/'completed' baru dipakai nanti setelah kasir menandai
-      // seluruh item pesanan (makanan & minuman) selesai dibuat, lewat
-      // OrdersController.finishOrder() / auto-complete di
-      // OrderDetailController.
+      // 1. Simpan Transaksi Induk — status langsung 'SUCCESS' karena
+      // pembayaran sudah dikonfirmasi di titik ini. Tidak ada lagi tahap
+      // "pending -> completed" seperti draft fitur Active Orders sebelumnya.
       final salesRes = await supabase.from('sales_transactions').insert({
         'user_id': session.ownerUserId.value, // wajib (NOT NULL) — owner akun/tenant pemilik cafe
         'invoice_number': invoiceNo,
         'customer_name': 'Walk-in Customer',
         'total_amount': totalAmount.value,
         'payment_method': paymentMethod,
-        'status': 'pending', // <-- FIX: dulu 'SUCCESS', sekarang 'pending'
+        'status': 'SUCCESS',
         'served_by': session.staffId.value, // staf/kasir yang memproses transaksi ini
       }).select().single().timeout(
         const Duration(seconds: 10),
@@ -162,9 +156,9 @@ class PaymentController extends GetxController {
       final transactionId = salesRes['id'];
 
       // 2. Simpan Detail Item
-      // Setiap item juga mulai dari status 'pending' (belum dibikin),
-      // supaya nanti bisa ditandai selesai satu-satu (minuman duluan,
-      // makanan nyusul, dst) di halaman Order Detail.
+      // Kolom status per item tidak dipakai lagi (sisa dari fitur Active
+      // Orders yang sudah dihapus). Kolom di DB boleh tetap ada, cukup
+      // tidak diisi dari sini.
       final List<Map<String, dynamic>> itemsToInsert = [];
       for (var item in cartController.cartItems) {
         itemsToInsert.add({
@@ -172,7 +166,6 @@ class PaymentController extends GetxController {
           'menu_id': item['menu_id'], // Diperoleh dari pembaruan modul Home & Cart sebelumnya
           'quantity': (item['quantity'] as RxInt).value,
           'price_at_sale': item['price'],
-          'status': 'pending', // <-- BARU: status per item
         });
       }
 
