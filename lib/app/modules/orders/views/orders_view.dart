@@ -60,6 +60,8 @@ class ActiveOrdersView extends GetView<OrdersController> {
     final String invoiceNumber = order['invoiceNumber'] ?? '-';
     final String customerName = order['customerName'] ?? 'Pelanggan';
     final int itemsCount = order['itemsCount'] ?? 0;
+    final int totalLines = order['totalLines'] ?? 0;
+    final int completedLines = order['completedLines'] ?? 0;
     final String priceLabel = ordersController.formatRupiah(order['totalAmount']);
     final String timeLabel = ordersController.timeAgo(order['createdAt']);
 
@@ -77,9 +79,37 @@ class ActiveOrdersView extends GetView<OrdersController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- HEADER: Nomor Order jadi judul utama (gantinya nomor meja) ---
-            Text(
-              'Order #$invoiceNumber',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Order #$invoiceNumber',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                ),
+                // Badge progress: "1/3 item selesai" — biar kasir langsung
+                // lihat sebagian pesanan (mis. minumannya) sudah kelar
+                // tanpa perlu buka detail dulu.
+                if (totalLines > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: completedLines == totalLines
+                          ? const Color(0xFFE8F5E9)
+                          : const Color(0xFFF1F3F4),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$completedLines/$totalLines selesai',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: completedLines == totalLines
+                            ? const Color(0xFF006847)
+                            : Colors.black54,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 2),
             Text(
@@ -136,7 +166,11 @@ class ActiveOrdersView extends GetView<OrdersController> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
-                      // TODO: Navigasi ke halaman detail order (opsional, belum diminta)
+                      // Buka checklist item (makanan/minuman) untuk invoice
+                      // ini, supaya kasir bisa menandai selesai satu-satu.
+                      Get.toNamed('/order-detail', arguments: {
+                        'transactionId': order['id'].toString(),
+                      });
                     },
                     style: OutlinedButton.styleFrom(
                       backgroundColor: const Color(0xFFF1F3F4),

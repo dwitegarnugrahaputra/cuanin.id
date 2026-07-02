@@ -18,23 +18,48 @@ class ScannedItem {
   final TextEditingController qtyController;
   final TextEditingController unitController;
   final TextEditingController priceController; // harga TOTAL baris ini (bukan per unit)
+  final TextEditingController contentPerPackageController; // isi per kemasan, mis. 100 (gram per Pouch)
+  final TextEditingController baseUnitController; // gram / ml / pcs — auto-suggest, bisa diedit
 
   ScannedItem({
     required String name,
     required String qty,
     required String unit,
     required String price,
+    String contentPerPackage = '',
+    String baseUnit = '',
   })  : nameController = TextEditingController(text: name),
         qtyController = TextEditingController(text: qty),
         unitController = TextEditingController(text: unit),
-        priceController = TextEditingController(text: price);
+        priceController = TextEditingController(text: price),
+        contentPerPackageController = TextEditingController(text: contentPerPackage),
+        baseUnitController = TextEditingController(text: baseUnit);
 
   void dispose() {
     nameController.dispose();
     qtyController.dispose();
     unitController.dispose();
     priceController.dispose();
+    contentPerPackageController.dispose();
+    baseUnitController.dispose();
   }
+}
+
+// Tebak base_unit dari nama bahan / unit yang terdeteksi OCR.
+// Ini cuma DEFAULT SUGGESTION — admin tetap bisa override manual di form verifikasi.
+String suggestBaseUnit(String itemName, String detectedUnit) {
+  final name = itemName.toLowerCase();
+  final unit = detectedUnit.toLowerCase();
+
+  final pcsKeywords = ['cup', 'sedotan', 'tutup', 'sendok', 'tissue', 'kertas', 'kemasan', 'kotak', 'box', 'straw'];
+  if (pcsKeywords.any((k) => name.contains(k))) return 'pcs';
+  if (unit == 'pcs' || unit == 'butir' || unit == 'buah') return 'pcs';
+
+  final liquidKeywords = ['susu', 'milk', 'syrup', 'sirup', 'saus', 'sauce', 'minyak', 'air mineral', 'cair'];
+  if (liquidKeywords.any((k) => name.contains(k))) return 'ml';
+  if (unit == 'liter' || unit == 'l' || unit == 'ml') return 'ml';
+
+  return 'gram'; // default: bubuk, daging, sayur, dll
 }
 
 // Helper format angka ke "Rp X.XXX.XXX" — dipakai di banyak tempat
@@ -260,9 +285,11 @@ class AdminDashboardController extends GetxController {
           "supplier_name": "Nama toko/supplier",
           "items": [
             {
-              "item_name": "Nama item bahan baku (contoh: Beras Premium)",
-              "quantity": 50.0,
-              "unit": "kg/pcs/liter/bungkus/dus",
+              "item_name": "Nama item bahan baku (contoh: Bubuk Matcha 100g)",
+              "quantity": 5.0,
+              "unit": "kg/pcs/liter/bungkus/dus/pouch/botol",
+              "content_per_package": 100.0,
+              "content_unit": "gram/ml/pcs",
               "total_price": 700000
             }
           ],
@@ -271,6 +298,10 @@ class AdminDashboardController extends GetxController {
           "tax": 302720,
           "grand_total": 3054720
         }
+        Field "content_per_package" adalah ISI PER SATU KEMASAN, bukan quantity yang dibeli.
+        Contoh: kalau nama produk di nota tertulis "Bubuk Matcha 100g" atau "Sirup Caramel 1L",
+        maka content_per_package = 100 (dengan content_unit = "gram") atau content_per_package = 1000 (dengan content_unit = "ml").
+        Jika ukuran isi kemasan TIDAK tercantum jelas di nota atau nama produk, isi content_per_package: null dan content_unit: null.
         Jika ada 10 baris produk di nota, kembalikan 10 object di dalam array "items".
         Untuk semua nilai uang (total_price, subtotal, discount, tax, grand_total), kembalikan sebagai angka murni (number), bukan string berformat "Rp".
         Jika nota tidak mencantumkan diskon, isi "discount": 0. Jika tidak ada PPN/pajak, isi "tax": 0.
@@ -327,21 +358,34 @@ class AdminDashboardController extends GetxController {
             final unit = (map['unit'] ?? 'pcs').toString();
             final price = _parsePriceToPlainNumber(map['total_price']);
 
+            final rawContent = map['content_per_package'];
+            final contentPerPackage = rawContent == null
+                ? ''
+                : (double.tryParse(rawContent.toString())?.toString() ?? '');
+            final contentUnit = (map['content_unit'] ?? '').toString().trim();
+            final suggestedBaseUnit = contentUnit.isNotEmpty ? contentUnit : suggestBaseUnit(name, unit);
+
             scannedItems.add(ScannedItem(
               name: name,
               qty: qty.toString(),
               unit: unit,
               price: price,
+              contentPerPackage: contentPerPackage, // kosong kalau AI tidak nemu → admin WAJIB isi manual
+              baseUnit: suggestedBaseUnit,
             ));
           }
         } else if (data['item_name'] != null) {
           // Fallback format lama (1 item saja)
           final qty = double.tryParse(data['quantity']?.toString() ?? '') ?? 1.0;
+          final name = data['item_name'].toString();
+          final unit = (data['unit'] ?? 'pcs').toString();
           scannedItems.add(ScannedItem(
-            name: data['item_name'].toString(),
+            name: name,
             qty: qty.toString(),
-            unit: (data['unit'] ?? 'pcs').toString(),
+            unit: unit,
             price: _parsePriceToPlainNumber(data['total_price']),
+            contentPerPackage: '',
+            baseUnit: suggestBaseUnit(name, unit),
           ));
         } else {
           throw Exception('AI tidak menemukan item apapun di nota ini. Coba foto ulang.');
@@ -416,28 +460,55 @@ class AdminDashboardController extends GetxController {
       return;
     }
 
+    // 🔒 VALIDASI WAJIB: semua item harus punya content_per_package sebelum bisa disimpan.
+    // Tanpa ini konversi ke base unit tidak bisa dilakukan (prasyarat arsitektur base-unit).
+    for (final item in scannedItems) {
+      final cpp = double.tryParse(item.contentPerPackageController.text) ?? 0.0;
+      final baseUnit = item.baseUnitController.text.trim();
+      if (cpp <= 0) {
+        Get.snackbar(
+          'Data Belum Lengkap',
+          'Isi "Isi per Kemasan" untuk "${item.nameController.text}" sebelum menyimpan (mis. 1 Pouch = 100 gram).',
+          backgroundColor: Colors.amber, colorText: Colors.white,
+          snackPosition: SnackPosition.TOP, duration: const Duration(seconds: 4),
+        );
+        return;
+      }
+      if (baseUnit.isEmpty || !['gram', 'ml', 'pcs'].contains(baseUnit)) {
+        Get.snackbar(
+          'Data Belum Lengkap',
+          'Pilih Base Unit (gram/ml/pcs) yang valid untuk "${item.nameController.text}".',
+          backgroundColor: Colors.amber, colorText: Colors.white,
+          snackPosition: SnackPosition.TOP, duration: const Duration(seconds: 4),
+        );
+        return;
+      }
+    }
+
     try {
       final supabase = Supabase.instance.client;
       final supplierName = supplierController.text;
+      final ownerUserId = Get.find<SessionController>().ownerUserId.value;
 
       int successCount = 0;
       int createdCount = 0;
-
       final List<String> failedItems = [];
 
-      // Proses tiap baris item satu per satu
       for (final item in scannedItems) {
         try {
           final itemName = item.nameController.text.trim();
           if (itemName.isEmpty) continue;
 
-          final qty = double.tryParse(item.qtyController.text) ?? 0.0;
-          final unit = item.unitController.text.trim().isEmpty ? 'pcs' : item.unitController.text.trim();
-          final totalPrice = double.tryParse(item.priceController.text) ?? 0.0;
-          // Harga per unit dihitung dari total dibagi qty, untuk disimpan di kolom unit_price
-          final unitPrice = qty > 0 ? totalPrice / qty : 0.0;
+          final purchaseQty = double.tryParse(item.qtyController.text) ?? 0.0;        // mis. 5 (Pouch)
+          final purchaseUnit = item.unitController.text.trim().isEmpty ? 'pcs' : item.unitController.text.trim();
+          final contentPerPackage = double.tryParse(item.contentPerPackageController.text) ?? 0.0; // mis. 100 (gram)
+          final baseUnit = item.baseUnitController.text.trim(); // gram/ml/pcs
+          final totalPrice = double.tryParse(item.priceController.text) ?? 0.0;       // mis. 75000
 
-          // Cari apakah item ini sudah ada di database (case-insensitive)
+          // ✅ KONVERSI SATU-SATUNYA DI SELURUH SISTEM — terjadi di sini, setelah verifikasi admin
+          final convertedQty = purchaseQty * contentPerPackage;         // 5 × 100 = 500 gram
+          final convertedUnitPrice = convertedQty > 0 ? totalPrice / convertedQty : 0.0; // 75000/500 = 150/gram
+
           final existingItem = ingredientsList.firstWhere(
                 (element) => element['name'].toString().toLowerCase() == itemName.toLowerCase(),
             orElse: () => <String, dynamic>{},
@@ -445,41 +516,56 @@ class AdminDashboardController extends GetxController {
 
           String materialId;
           double newStock;
+          double newUnitPrice;
 
           if (existingItem.isNotEmpty) {
-            // Item SUDAH ADA → tinggal update stok yang ada
             materialId = existingItem['id'].toString();
-            newStock = (existingItem['qty'] as double) + qty;
+            final oldStock = (existingItem['qty'] as double?) ?? 0.0;
+            final oldPrice = (existingItem['unit_price'] as double?) ?? 0.0;
+
+            // 📊 Weighted average price — harga tetap akurat meski harga beli fluktuatif tiap restock
+            final oldValue = oldStock * oldPrice;
+            final addedValue = convertedQty * convertedUnitPrice;
+            newStock = oldStock + convertedQty;
+            newUnitPrice = newStock > 0 ? (oldValue + addedValue) / newStock : convertedUnitPrice;
 
             await supabase.from('raw_materials').update({
               'current_stock': newStock,
-              'unit_price': unitPrice, // ikut update harga satuan terbaru dari nota ini
+              'unit_price': newUnitPrice,
+              'base_unit': baseUnit,
+              'content_per_package': contentPerPackage, // referensi default utk restock berikutnya
+              'unit': baseUnit, // "unit" dipakai display, samakan dengan base_unit
             }).eq('id', materialId);
           } else {
-            // Item BELUM ADA → auto-buat baris baru di raw_materials
-            // CATATAN: kolom "category" di tabel ini NOT NULL, tapi AI scan nota
-            // gak bisa nentuin kategori bisnis (Bahan Pokok/Bumbu/dll) dari struk.
-            // Sementara kasih default 'Lainnya' — admin bisa edit manual nanti
-            // lewat halaman Inventory kalau mau dikategorikan ulang.
+            // Item BELUM ADA → auto-buat baris baru, langsung dalam base unit
+            newStock = convertedQty;
+            newUnitPrice = convertedUnitPrice;
+
             final inserted = await supabase.from('raw_materials').insert({
               'material_name': itemName,
               'category': 'Lainnya',
-              'current_stock': qty,
-              'unit': unit,
-              'unit_price': unitPrice,
+              'current_stock': newStock,
+              'unit': baseUnit,
+              'unit_price': newUnitPrice,
+              'base_unit': baseUnit,
+              'content_per_package': contentPerPackage,
+              'user_id': ownerUserId,
             }).select().single();
 
             materialId = inserted['id'].toString();
-            newStock = qty;
             createdCount++;
           }
 
-          // Catat log supply (riwayat masuknya stok) untuk SEMUA kasus, baik item lama maupun baru
+          // Log riwayat restock — simpan JUGA bentuk asli (Pouch) untuk audit trail
           await supabase.from('supply_logs').insert({
             'supplier_name': supplierName,
-            'quantity_added': qty,
+            'quantity_added': convertedQty, // dicatat dalam base unit (gram), konsisten dgn stok
             'source_type': 'OCR Scan',
             'material_id': materialId,
+            'user_id': ownerUserId,
+            'purchase_qty': purchaseQty,
+            'purchase_unit': purchaseUnit,
+            'content_per_package': contentPerPackage,
           });
 
           successCount++;
@@ -488,7 +574,6 @@ class AdminDashboardController extends GetxController {
         }
       }
 
-      // Tampilkan ringkasan hasil proses ke admin
       if (failedItems.isEmpty) {
         Get.snackbar(
           'Berhasil',

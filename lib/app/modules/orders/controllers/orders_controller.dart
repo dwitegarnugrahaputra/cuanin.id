@@ -24,12 +24,17 @@ class OrdersController extends GetxController {
   //
   // Konvensi status dipakai di app ini:
   //   'pending'   -> order masih berjalan, tampil di tab Active Orders
-  //   'completed' -> order sudah selesai (ditekan tombol Finish Order),
-  //                  hilang dari tab ini
+  //   'completed' -> order sudah selesai (SEMUA item-nya sudah ditandai
+  //                  selesai satu-satu di halaman Order Detail, atau
+  //                  ditekan tombol Finish Order manual), hilang dari
+  //                  tab ini
   //
   // Jumlah item per order diambil lewat nested select ke transaction_items
   // (foreign table), lalu dijumlahkan quantity-nya di sisi Dart — supaya
   // tidak perlu bikin RPC/SQL function terpisah hanya untuk SUM sederhana.
+  //
+  // Ikut ambil id & status tiap transaction_items supaya kartu order bisa
+  // menampilkan progress ringkas, misal "2/3 item selesai".
   Future<void> fetchActiveOrders() async {
     try {
       isLoading(true);
@@ -43,7 +48,7 @@ class OrdersController extends GetxController {
             total_amount,
             status,
             created_at,
-            transaction_items ( quantity )
+            transaction_items ( id, quantity, status )
           ''')
           .eq('status', 'pending')
           .order('created_at', ascending: false);
@@ -55,6 +60,10 @@ class OrdersController extends GetxController {
           0,
               (sum, item) => sum + ((item['quantity'] ?? 0) as int),
         );
+        final int totalLines = items.length;
+        final int completedLines = items
+            .where((item) => item['status'] == 'completed')
+            .length;
 
         parsed.add({
           'id': row['id'],
@@ -63,6 +72,8 @@ class OrdersController extends GetxController {
           'totalAmount': row['total_amount'] ?? 0,
           'createdAt': row['created_at'],
           'itemsCount': itemsCount,
+          'totalLines': totalLines,
+          'completedLines': completedLines,
         });
       }
 
@@ -78,16 +89,24 @@ class OrdersController extends GetxController {
     }
   }
 
-  // --- TANDAI ORDER SELESAI ---
-  // Mengubah status menjadi 'completed', lalu menghapus order itu dari
-  // list lokal (optimistic) sambil tetap refresh dari server untuk
-  // memastikan data konsisten.
+  // --- TANDAI ORDER SELESAI (MANUAL, DARI KARTU LANGSUNG) ---
+  // Dipakai kalau kasir mau langsung menandai seluruh invoice selesai
+  // tanpa masuk ke Order Detail dulu. Mengubah status jadi 'completed',
+  // lalu menghapus order itu dari list lokal (optimistic) sambil tetap
+  // refresh dari server untuk memastikan data konsisten.
   Future<void> finishOrder(String transactionId) async {
     try {
       await supabase
           .from('sales_transactions')
           .update({'status': 'completed'})
           .eq('id', transactionId);
+
+      // Ikut tandai semua item di invoice ini selesai, biar konsisten
+      // dengan status induknya.
+      await supabase
+          .from('transaction_items')
+          .update({'status': 'completed'})
+          .eq('transaction_id', transactionId);
 
       activeOrders.removeWhere((order) => order['id'] == transactionId);
 

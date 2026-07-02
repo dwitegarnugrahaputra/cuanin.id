@@ -12,6 +12,8 @@ import '../modules/home/bindings/home_binding.dart';
 import '../modules/home/views/home_view.dart';
 import '../modules/login/bindings/login_binding.dart';
 import '../modules/login/views/login_view.dart';
+import '../modules/order_detail/bindings/order_detail_binding.dart';
+import '../modules/order_detail/views/order_detail_view.dart';
 import '../modules/orders/bindings/orders_binding.dart';
 import '../modules/orders/views/orders_view.dart';
 import '../modules/payment/bindings/payment_binding.dart';
@@ -78,6 +80,11 @@ class AppPages {
       name: _Paths.ADMIN_DASHBOARD,
       page: () => const AdminDashboardView(),
       binding: AdminDashboardBinding(),
+    ),
+    GetPage(
+      name: _Paths.ORDER_DETAIL,
+      page: () => const OrderDetailView(),
+      binding: OrderDetailBinding(),
     ),
   ];
 }

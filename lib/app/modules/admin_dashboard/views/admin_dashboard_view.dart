@@ -286,7 +286,13 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
               final item = controller.filteredIngredients[index];
               final double qty = item['qty'] as double;
               final String unit = item['unit'] as String;
-              final statusInfo = controller.getStockStatus(qty, unit);
+              final double threshold =
+                  (item['minimum_threshold'] as num?)?.toDouble() ?? 0.0;
+              final statusInfo = controller.getStockStatus(
+                qty,
+                unit,
+                threshold: threshold,
+              );
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -353,7 +359,13 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
               final item = controller.filteredWasteIngredients[index];
               final double qty = item['qty'] as double;
               final String unit = item['unit'] as String;
-              final statusInfo = controller.getStockStatus(qty, unit);
+              final double threshold =
+                  (item['minimum_threshold'] as num?)?.toDouble() ?? 0.0;
+              final statusInfo = controller.getStockStatus(
+                qty,
+                unit,
+                threshold: threshold,
+              );
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -658,22 +670,73 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                     ],
                   ),
                   const Divider(height: 16),
-                  // Baris bawah: qty, unit, total harga — 3 kolom sejajar
+                  // Baris qty, unit beli, total harga — 3 kolom sejajar
                   Row(
                     children: [
                       Expanded(
                         flex: 2,
-                        child: _buildMiniField('QTY', item.qtyController, keyboardType: TextInputType.number),
+                        child: _buildMiniField('QTY BELI', item.qtyController, keyboardType: TextInputType.number),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         flex: 2,
-                        child: _buildMiniField('UNIT', item.unitController),
+                        child: _buildMiniField('UNIT BELI', item.unitController),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         flex: 3,
                         child: _buildMiniField('TOTAL HARGA (Rp)', item.priceController, keyboardType: TextInputType.number),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // ✅ BARU: Baris konversi ke base unit — WAJIB diisi sebelum simpan.
+                  // Ini titik konversi satu-satunya (Pouch/Botol → gram/ml/pcs).
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: _buildMiniField('ISI/KEMASAN', item.contentPerPackageController, keyboardType: TextInputType.number),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: _buildBaseUnitDropdown(item.baseUnitController),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 3,
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([
+                            item.qtyController,
+                            item.contentPerPackageController,
+                            item.baseUnitController,
+                          ]),
+                          builder: (context, _) {
+                            final purchaseQty = double.tryParse(item.qtyController.text) ?? 0.0;
+                            final content = double.tryParse(item.contentPerPackageController.text) ?? 0.0;
+                            final baseUnit = item.baseUnitController.text.isEmpty ? '-' : item.baseUnitController.text;
+                            final convertedQty = purchaseQty * content;
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE6F4EA),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('HASIL KONVERSI', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF006847))),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    content > 0 ? '${convertedQty.toStringAsFixed(0)} $baseUnit' : '-',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF006847)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),
@@ -771,6 +834,45 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
             fillColor: const Color(0xFFF9FAFB),
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ BARU: Dropdown base unit (gram/ml/pcs) dipasangkan dengan TextEditingController,
+  // karena struktur data existing (ScannedItem) berbasis controller, bukan Rx.
+  Widget _buildBaseUnitDropdown(TextEditingController controller) {
+    final options = ['gram', 'ml', 'pcs'];
+    final currentValue = options.contains(controller.text) ? controller.text : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('BASE UNIT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              isDense: true,
+              value: currentValue,
+              hint: const Text('Pilih', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              items: options
+                  .map((u) => DropdownMenuItem(
+                value: u,
+                child: Text(u, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              ))
+                  .toList(),
+              onChanged: (val) {
+                if (val != null) controller.text = val;
+              },
+            ),
           ),
         ),
       ],
