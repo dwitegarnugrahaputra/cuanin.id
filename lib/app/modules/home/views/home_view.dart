@@ -336,6 +336,9 @@ class HomeView extends GetView<HomeController> {
                 itemCount: controller.filteredProducts.length,
                 itemBuilder: (context, index) {
                   final product = controller.filteredProducts[index];
+                  // ⚠️ [FR-K06 EXTENSION] Status ketersediaan riil berdasarkan
+                  // resep vs stok bahan baku (dihitung di HomeController).
+                  final bool inStock = product['inStock'] ?? true;
                   return Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -346,16 +349,48 @@ class HomeView extends GetView<HomeController> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F3F4),
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                              image: DecorationImage(
-                                image: NetworkImage(product['image']),
-                                fit: BoxFit.cover,
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: Opacity(
+                                  opacity: inStock ? 1.0 : 0.4,
+                                  child: Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F3F4),
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                                      image: DecorationImage(
+                                        image: NetworkImage(product['image']),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                              // Badge "HABIS" muncul di pojok kiri-atas gambar
+                              // kalau stok bahan baku menu ini tidak cukup.
+                              if (!inStock)
+                                Positioned(
+                                  top: 8,
+                                  left: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDC2626),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'HABIS',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                         Padding(
@@ -367,7 +402,11 @@ class HomeView extends GetView<HomeController> {
                                 product['name'],
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: inStock ? Colors.black87 : Colors.grey[400],
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Row(
@@ -375,14 +414,26 @@ class HomeView extends GetView<HomeController> {
                                 children: [
                                   Text(
                                     'Rp ${product['price'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF006847),
+                                    style: TextStyle(
+                                      color: inStock ? const Color(0xFF006847) : Colors.grey[400],
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
                                     ),
                                   ),
                                   GestureDetector(
                                     onTap: () {
+                                      // 🚫 Blokir checkout kalau stok bahan baku habis —
+                                      // tidak buka modifier sheet, cuma kasih tahu kasir.
+                                      if (!inStock) {
+                                        Get.snackbar(
+                                          'Stok Habis',
+                                          '${product['name']} tidak bisa dipesan karena stok bahan baku habis.',
+                                          snackPosition: SnackPosition.TOP,
+                                          backgroundColor: Colors.red[800],
+                                          colorText: Colors.white,
+                                        );
+                                        return;
+                                      }
                                       controller.openOrderModifier(
                                         product['name'],
                                         product['price'],
@@ -402,9 +453,9 @@ class HomeView extends GetView<HomeController> {
                                         ),
                                       );
                                     },
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.add_circle_outline_rounded,
-                                      color: Color(0xFF006847),
+                                      color: inStock ? const Color(0xFF006847) : Colors.grey[400],
                                       size: 24,
                                     ),
                                   )

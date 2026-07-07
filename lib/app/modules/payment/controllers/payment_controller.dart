@@ -176,25 +176,51 @@ class PaymentController extends GetxController {
         );
 
         // 3. FITUR RAHASIA: Pengurangan Stok Gudang Otomatis Berdasarkan Resep (Automated Inventory Deduction)
+        //
+        // ⚠️ [BUGFIX FR-K06] Sebelumnya kode ini query ke tabel 'menu_recipes' yang
+        // TIDAK PERNAH diisi oleh dashboard admin (MenuManagement.jsx). Resep bahan baku
+        // ternyata disimpan sebagai kolom JSONB 'recipe' langsung di tabel 'menus'.
+        // Akibatnya query lama selalu balikin list kosong -> loop 0 iterasi -> stok
+        // tidak pernah terpotong, TANPA error apapun (karena list kosong bukan exception).
         for (var item in cartController.cartItems) {
           final int qtyBeli = (item['quantity'] as RxInt).value;
           final String menuId = item['menu_id'];
 
-          // Tarik komposisi resep untuk menu ini
-          final recipes = await supabase.from('menu_recipes').select().eq('menu_id', menuId);
+          // Tarik data menu (termasuk kolom JSONB `recipe`) untuk menu ini
+          final menuRow = await supabase
+              .from('menus')
+              .select('recipe')
+              .eq('id', menuId)
+              .single();
 
-          for (var recipe in recipes) {
-            final String materialId = recipe['material_id'];
-            final double neededPerCup = (recipe['quantity_needed'] as num).toDouble();
-            final double totalDeduction = neededPerCup * qtyBeli;
+          final dynamic rawRecipe = menuRow['recipe'];
+          if (rawRecipe == null || rawRecipe is! List || rawRecipe.isEmpty) {
+            // Menu ini belum punya resep terdaftar di dashboard admin — skip tanpa error,
+            // tapi log supaya kelihatan di console saat debugging.
+            // ignore: avoid_print
+            print('[PaymentController] ⚠️ Menu $menuId tidak punya resep terdaftar, stok tidak dipotong.');
+            continue;
+          }
+
+          for (var recipe in rawRecipe) {
+            final String? materialId = recipe['ingredientId']?.toString();
+            final double neededPerPortion = double.tryParse(recipe['qty'].toString()) ?? 0;
+            if (materialId == null || materialId.isEmpty || neededPerPortion <= 0) continue;
+
+            final double totalDeduction = neededPerPortion * qtyBeli;
 
             // Ambil stok terbaru di gudang
-            final rawMaterial = await supabase.from('raw_materials').select('current_stock').eq('id', materialId).single();
+            final rawMaterial = await supabase
+                .from('raw_materials')
+                .select('current_stock')
+                .eq('id', materialId)
+                .single();
             final double currentStock = (rawMaterial['current_stock'] as num).toDouble();
 
-            // Update pemotongan stok
+            // Update pemotongan stok (clamp ke 0 supaya tidak minus di database)
+            final double newStock = (currentStock - totalDeduction) < 0 ? 0 : (currentStock - totalDeduction);
             await supabase.from('raw_materials').update({
-              'current_stock': currentStock - totalDeduction
+              'current_stock': newStock
             }).eq('id', materialId);
           }
         }

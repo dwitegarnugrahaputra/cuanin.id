@@ -86,11 +86,29 @@ class HomeController extends GetxController {
   var filteredProducts = <Map<String, dynamic>>[].obs;
   StreamSubscription<List<Map<String, dynamic>>>? _menuSubscription;
 
+  // --- [FR-K06 EXTENSION] STOCK-AWARE MENU AVAILABILITY ---
+  //
+  // Selain flag manual `is_available` (yang di-toggle owner lewat dashboard),
+  // sekarang kita juga menghitung ketersediaan RIIL berdasarkan resep vs stok
+  // bahan baku aktual di tabel `raw_materials`. Kalau salah satu bahan di
+  // resep sebuah menu tidak cukup untuk 1 porsi, menu itu otomatis dianggap
+  // habis di kasir — TANPA perlu owner manual matiin `is_available`.
+  //
+  // rawStockMap: material_id -> current_stock (di-refresh realtime)
+  var rawStockMap = <String, double>{}.obs;
+  StreamSubscription<List<Map<String, dynamic>>>? _stockSubscription;
+
+  // Cache mentah hasil stream `menus` (termasuk kolom `recipe`), dipakai untuk
+  // rebuild ulang `allProducts` setiap kali rawStockMap berubah (tanpa perlu
+  // nunggu ada perubahan di tabel `menus` itu sendiri).
+  List<Map<String, dynamic>> _rawMenuRows = [];
+
   @override
   void onInit() {
     super.onInit();
     fetchUserProfile();
     subscribeToMenus();
+    subscribeToRawMaterialStock();
     searchController.addListener(() {
       filterDisplayProducts();
     });
@@ -109,24 +127,82 @@ class HomeController extends GetxController {
         .stream(primaryKey: ['id'])
         .eq('is_available', true)
         .listen((response) {
-      final List<Map<String, dynamic>> fetchedProducts = [];
-      for (var item in response) {
-        fetchedProducts.add({
-          'id': item['id'],
-          'name': item['menu_name'] ?? 'Unknown',
-          'price': (item['price'] as num).toInt(),
-          'category': item['category'] ?? 'Others',
-          'image': item['image_url'] ?? 'https://via.placeholder.com/150',
-        });
-      }
-
-      allProducts.assignAll(fetchedProducts);
-      filterDisplayProducts();
+      _rawMenuRows = response;
+      _rebuildProductsFromCache();
       isLoading(false);
     }, onError: (e) {
       isLoading(false);
       Get.snackbar('Error', 'Gagal memantau perubahan menu secara realtime: $e');
     });
+  }
+
+  // ⚡ [FR-K06 EXTENSION] Dengerin realtime perubahan stok bahan baku
+  // (misalnya dipotong otomatis oleh PaymentController setelah transaksi
+  // sukses, atau ditambah manual/OCR lewat dashboard admin stok). Setiap
+  // kali stok berubah, kita rebuild ulang daftar produk supaya status
+  // "HABIS" di kasir selalu real-time — tanpa perlu refresh manual.
+  void subscribeToRawMaterialStock() {
+    final supabase = Supabase.instance.client;
+    _stockSubscription = supabase
+        .from('raw_materials')
+        .stream(primaryKey: ['id'])
+        .listen((response) {
+      final Map<String, double> newMap = {};
+      for (var row in response) {
+        final id = row['id']?.toString();
+        if (id == null) continue;
+        newMap[id] = (row['current_stock'] as num?)?.toDouble() ?? 0;
+      }
+      rawStockMap.assignAll(newMap);
+      _rebuildProductsFromCache();
+    }, onError: (e) {
+      // Non-fatal: kalau gagal, availability check di-skip (anggap semua
+      // menu tersedia) supaya kasir tetap bisa jualan meski ada gangguan
+      // koneksi realtime stok.
+      // ignore: avoid_print
+      print('[HomeController] ⚠️ Gagal memantau stok bahan baku realtime: $e');
+    });
+  }
+
+  // Cek apakah stok bahan baku cukup untuk minimal 1 porsi menu ini,
+  // berdasarkan kolom JSONB `recipe` yang tersimpan di tabel `menus`
+  // (diisi lewat dashboard MenuManagement -> "Pemetaan Resep Bahan Baku").
+  bool _isMenuStockAvailable(dynamic rawRecipe) {
+    if (rawRecipe == null || rawRecipe is! List || rawRecipe.isEmpty) {
+      // Menu belum punya resep terdaftar -> tidak bisa divalidasi stoknya,
+      // default dianggap tersedia (jangan blokir jualan gara-gara data
+      // resep belum diisi admin).
+      return true;
+    }
+    for (var ingredient in rawRecipe) {
+      final String? materialId = ingredient['ingredientId']?.toString();
+      final double neededPerPortion = double.tryParse(ingredient['qty'].toString()) ?? 0;
+      if (materialId == null || materialId.isEmpty) continue;
+
+      final double currentStock = rawStockMap[materialId] ?? 0;
+      if (currentStock < neededPerPortion) {
+        return false; // salah satu bahan tidak cukup -> menu dianggap HABIS
+      }
+    }
+    return true;
+  }
+
+  // Bangun ulang `allProducts` dari cache raw menu rows + rawStockMap
+  // terbaru. Dipanggil setiap kali salah satu dari dua sumber data berubah.
+  void _rebuildProductsFromCache() {
+    final List<Map<String, dynamic>> fetchedProducts = [];
+    for (var item in _rawMenuRows) {
+      fetchedProducts.add({
+        'id': item['id'],
+        'name': item['menu_name'] ?? 'Unknown',
+        'price': (item['price'] as num).toInt(),
+        'category': item['category'] ?? 'Others',
+        'image': item['image_url'] ?? 'https://via.placeholder.com/150',
+        'inStock': _isMenuStockAvailable(item['recipe']),
+      });
+    }
+    allProducts.assignAll(fetchedProducts);
+    filterDisplayProducts();
   }
 
   void changeCategory(String category) {
@@ -180,6 +256,7 @@ class HomeController extends GetxController {
   @override
   void onClose() {
     _menuSubscription?.cancel();
+    _stockSubscription?.cancel();
     searchController.dispose();
     notesController.dispose();
     super.onClose();
