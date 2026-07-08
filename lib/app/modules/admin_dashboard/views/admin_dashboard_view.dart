@@ -95,6 +95,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
               onPressed: () {
                 controller.isTriggeredFromFab.value = false;
                 controller.showReviewPage.value = false;
+                controller.isManualEntry.value = false; // reset biar FAB scan gak "nyangkut" mode manual
               },
             );
           } else if (controller.currentPageIndex.value == 1 && controller.isViewingWasteForm.value) {
@@ -115,7 +116,10 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         }),
         title: Obx(() {
           if (controller.showReviewPage.value && controller.isTriggeredFromFab.value) {
-            return const Text('Data Confirmation', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18));
+            return Text(
+              controller.isManualEntry.value ? 'Input Manual Stok' : 'Data Confirmation',
+              style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
+            );
           } else if (controller.currentPageIndex.value == 1) {
             return Text(controller.isViewingWasteForm.value ? 'Stock Opname' : 'Select Product for Waste', style: const TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.bold, fontSize: 18));
           }
@@ -163,25 +167,58 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
             }
           }),
 
-          // FAB SCAN NOTA (Hanya Muncul di Dashboard Utama Inventory)
+          // FAB RESTOCK (Hanya Muncul di Dashboard Utama Inventory)
+          // 🆕 Sekarang berupa speed-dial kecil dengan 2 opsi: Scan Nota (OCR)
+          // dan Input Manual (untuk restock dari pasar/toko yang gak kasih nota).
           Obx(() {
             return controller.currentPageIndex.value == 0 && !controller.isTriggeredFromFab.value
                 ? Positioned(
               right: 20, bottom: 20,
-              child: InkWell(
-                onTap: () => controller.openScannerFromFab(),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  decoration: BoxDecoration(color: const Color(0xFF009663), borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 4))]),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
-                      Text('Scan Nota', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                    ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Opsi 2: Input Manual (tanpa nota)
+                  InkWell(
+                    onTap: () => controller.openManualInputForm(),
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: const Color(0xFF009663)),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6, offset: const Offset(0, 3))],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.edit_note_rounded, color: Color(0xFF009663), size: 18),
+                          SizedBox(width: 8),
+                          Text('Input Manual', style: TextStyle(color: Color(0xFF009663), fontWeight: FontWeight.bold, fontSize: 13)),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  // Opsi 1: Scan Nota (OCR) — tetap yang utama/paling sering dipakai
+                  InkWell(
+                    onTap: () => controller.openScannerFromFab(),
+                    borderRadius: BorderRadius.circular(30),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      decoration: BoxDecoration(color: const Color(0xFF009663), borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.camera_alt_rounded, color: Colors.white, size: 18),
+                          SizedBox(width: 8),
+                          Text('Scan Nota', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             )
                 : const SizedBox.shrink();
@@ -294,26 +331,35 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                 threshold: threshold,
               );
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFF3F4F6))),
-                child: Row(
-                  children: [
-                    Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle, image: DecorationImage(image: NetworkImage(item['image']), fit: BoxFit.cover))),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF111827))),
-                          const SizedBox(height: 4),
-                          Text('Current Qty: $qty $unit', style: TextStyle(color: Colors.grey[400], fontSize: 11, fontWeight: FontWeight.w500)),
-                        ],
+              return GestureDetector(
+                // 🆕 Tap item buka "Kelola Satuan Pakai" — admin stok bisa nambah
+                // konversi custom (siung, sdt, slice, saset, dll) buat bahan ini,
+                // supaya nanti dropdown Takaran di Pemetaan Resep (menumanagement.jsx)
+                // gak cuma nawarin base_unit mentah (gram/ml/pcs) yang gampang salah kaprah.
+                onTap: () => _openUsageUnitsBottomSheet(context, controller, item),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFF3F4F6))),
+                  child: Row(
+                    children: [
+                      Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle, image: DecorationImage(image: NetworkImage(item['image']), fit: BoxFit.cover))),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF111827))),
+                            const SizedBox(height: 4),
+                            Text('Current Qty: $qty $unit', style: TextStyle(color: Colors.grey[400], fontSize: 11, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
                       ),
-                    ),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: statusInfo['bgColor'], borderRadius: BorderRadius.circular(10)), child: Text(statusInfo['text'], style: TextStyle(color: statusInfo['textColor'], fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.3)))
-                  ],
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: statusInfo['bgColor'], borderRadius: BorderRadius.circular(10)), child: Text(statusInfo['text'], style: TextStyle(color: statusInfo['textColor'], fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.3))),
+                      const SizedBox(width: 6),
+                      Icon(Icons.chevron_right_rounded, color: Colors.grey[300], size: 20),
+                    ],
+                  ),
                 ),
               );
             },
@@ -590,7 +636,26 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
     return ListView(
       padding: const EdgeInsets.all(20.0),
       children: [
-        Obx(() => Container(
+        // Preview foto nota — disembunyikan kalau mode Input Manual (memang gak ada foto)
+        Obx(() => controller.isManualEntry.value
+            ? Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(12)),
+          child: Row(
+            children: const [
+              Icon(Icons.edit_note_rounded, color: Color(0xFF006847)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Mode Input Manual — isi data restock sendiri (tanpa nota/foto).',
+                  style: TextStyle(color: Color(0xFF006847), fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        )
+            : Container(
           height: 180,
           width: double.infinity,
           decoration: BoxDecoration(
@@ -611,8 +676,11 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
         )),
         const SizedBox(height: 24),
 
-        // 1. Input Supplier (cuma 1, karena 1 nota = 1 supplier)
-        const Text('SUPPLIER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+        // 1. Input Supplier — untuk manual, ini jadi "Sumber/Pasar" (tetap kolom yang sama)
+        Obx(() => Text(
+          controller.isManualEntry.value ? 'SUMBER RESTOCK (Pasar/Toko)' : 'SUPPLIER',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
+        )),
         const SizedBox(height: 8),
         TextField(controller: controller.supplierController, decoration: InputDecoration(filled: true, fillColor: Colors.white, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF009663))))),
         const SizedBox(height: 24),
@@ -757,36 +825,77 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
 
         const SizedBox(height: 12),
 
-        const SizedBox(height: 10),
-        Text(
-          'Catatan: angka di atas dibaca langsung dari nota asli. Kalau kamu edit/hapus baris item, angka ini tidak otomatis berubah.',
-          style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
+        // 3b. Tombol tambah baris item kosong — dipakai utamanya di mode manual,
+        // tapi juga berguna kalau OCR ada item nota yang kelewat kefoto.
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => controller.addManualScannedItem(),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF006847),
+              side: const BorderSide(color: Color(0xFF006847)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Tambah Item', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
         ),
+
+        const SizedBox(height: 10),
+        Obx(() => Text(
+          controller.isManualEntry.value
+              ? 'Isi tiap baris sesuai barang yang dibeli. Jangan lupa isi "Isi per Kemasan" dan "Base Unit" supaya stok bisa dikonversi dengan benar.'
+              : 'Catatan: angka di atas dibaca langsung dari nota asli. Kalau kamu edit/hapus baris item, angka ini tidak otomatis berubah.',
+          style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
+        )),
         const SizedBox(height: 12),
 
-        // 4. Breakdown total nota: Sub Total, Diskon, PPN, Grand Total
-        // Nilai ini dibaca dari hasil AI (bukan dihitung ulang dari item),
-        // supaya sama persis dengan yang tercetak di nota fisik.
-        Obx(() => Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
-          child: Column(
-            children: [
-              _buildBreakdownRow('Sub Total', formatRupiah(controller.notaSubtotal.value)),
-              if (controller.notaDiscount.value > 0)
-                _buildBreakdownRow('Diskon', '- ${formatRupiah(controller.notaDiscount.value)}', valueColor: const Color(0xFFDC2626)),
-              if (controller.notaTax.value > 0)
-                _buildBreakdownRow('PPN', formatRupiah(controller.notaTax.value)),
-              const Divider(height: 16),
-              _buildBreakdownRow(
-                'TOTAL NOTA',
-                formatRupiah(controller.notaGrandTotal.value),
-                isBold: true,
+        // 4. Breakdown total:
+        //    - Mode OCR: Sub Total/Diskon/PPN/Grand Total dibaca dari hasil AI,
+        //      supaya sama persis dengan yang tercetak di nota fisik.
+        //    - Mode Manual: tidak ada nota, jadi cukup tampilkan total belanja
+        //      hasil jumlah semua baris harga yang diisi admin (live).
+        Obx(() {
+          if (controller.isManualEntry.value) {
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+              // AnimatedBuilder dengar semua priceController biar total ke-update
+              // live tiap admin ketik harga per baris (Obx aja gak cukup karena
+              // isi TextEditingController bukan Rx).
+              child: AnimatedBuilder(
+                animation: Listenable.merge(controller.scannedItems.map((i) => i.priceController).toList()),
+                builder: (context, _) => _buildBreakdownRow(
+                  'TOTAL BELANJA',
+                  formatRupiah(controller.manualGrandTotal),
+                  isBold: true,
+                ),
               ),
-            ],
-          ),
-        )),
+            );
+          }
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE5E7EB))),
+            child: Column(
+              children: [
+                _buildBreakdownRow('Sub Total', formatRupiah(controller.notaSubtotal.value)),
+                if (controller.notaDiscount.value > 0)
+                  _buildBreakdownRow('Diskon', '- ${formatRupiah(controller.notaDiscount.value)}', valueColor: const Color(0xFFDC2626)),
+                if (controller.notaTax.value > 0)
+                  _buildBreakdownRow('PPN', formatRupiah(controller.notaTax.value)),
+                const Divider(height: 16),
+                _buildBreakdownRow(
+                  'TOTAL NOTA',
+                  formatRupiah(controller.notaGrandTotal.value),
+                  isBold: true,
+                ),
+              ],
+            ),
+          );
+        }),
         const SizedBox(height: 32),
 
         // Tombol Konfirmasi Update Ke Database
@@ -876,6 +985,167 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
           ),
         ),
       ],
+    );
+  }
+
+  // 🆕 [SATUAN PAKAI] Trigger buka bottom sheet dari tap item inventory.
+  void _openUsageUnitsBottomSheet(BuildContext context, AdminDashboardController controller, Map<String, dynamic> item) {
+    controller.openUsageUnitsSheet(item);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _buildUsageUnitsSheet(sheetContext, controller),
+    ).whenComplete(() => controller.tutupUsageUnitsSheet());
+  }
+
+  // 🆕 [SATUAN PAKAI] Isi bottom sheet: list satuan custom yang sudah ada
+  // + form tambah baru. Ini yang menyelesaikan keluhan "kenapa nasi goreng
+  // makan kaldu bubuk 1 pcs/saset padahal cuma butuh 1 sdt" — admin stok
+  // bisa define "1 sdt = 3 gram" di sini, biar nanti bisa dipilih di
+  // Pemetaan Resep (menumanagement.jsx) alih-alih base_unit mentah.
+  Widget _buildUsageUnitsSheet(BuildContext context, AdminDashboardController controller) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.62,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: Obx(() {
+            final item = controller.selectedIngredientForUnits;
+            final baseUnit = item['unit']?.toString() ?? '-';
+            final itemName = item['name']?.toString() ?? '';
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Satuan Pakai — $itemName',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF111827)),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Base unit stok bahan ini: "$baseUnit". Tambahkan satuan yang beneran '
+                      'dipakai di resep (siung, sdt, sdm, slice, saset, dll) beserta konversinya '
+                      'ke $baseUnit, supaya pemotongan stok pas resep dieksekusi lebih akurat.',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: controller.isLoadingUsageUnits.value
+                      ? const Center(child: CircularProgressIndicator(color: Color(0xFF006847)))
+                      : controller.usageUnitsList.isEmpty
+                      ? Center(
+                    child: Text(
+                      'Belum ada satuan pakai custom untuk bahan ini.\nTambahkan lewat form di bawah.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                  )
+                      : ListView.separated(
+                    controller: scrollController,
+                    itemCount: controller.usageUnitsList.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final u = controller.usageUnitsList[index];
+                      final unitName = u['unit_name']?.toString() ?? '';
+                      final grams = u['grams_per_unit'];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(unitName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        subtitle: Text('1 $unitName = $grams $baseUnit', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                          onPressed: () => controller.hapusUsageUnit(u['id']),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const Divider(height: 24),
+                const Text('TAMBAH SATUAN BARU', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: controller.usageUnitNameController,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'mis. siung / sdt',
+                          isDense: true,
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: controller.usageUnitGramsController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: '= ? $baseUnit',
+                          isDense: true,
+                          filled: true,
+                          fillColor: const Color(0xFFF9FAFB),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 44, width: 44,
+                      child: ElevatedButton(
+                        onPressed: controller.tambahUsageUnit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF006847),
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Icon(Icons.add_rounded, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }),
+        );
+      },
     );
   }
 }

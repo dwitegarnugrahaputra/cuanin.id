@@ -127,6 +127,14 @@ class AdminDashboardController extends GetxController {
   var showReviewPage = false.obs;
   var isTriggeredFromFab = false.obs;
 
+  // 🆕 [FR-A05 EXTENSION] Flag pembeda: apakah layar Data Confirmation ini
+  // dibuka lewat hasil scan OCR nota, ATAU lewat input manual (restock dari
+  // pasar/warung yang gak kasih nota). Dipakai untuk:
+  //  - Judul AppBar ("Data Confirmation" vs "Input Manual Stok")
+  //  - Sembunyikan breakdown Sub Total/PPN (itu murni hasil baca AI dari nota fisik)
+  //  - Menandai source_type di supply_logs jadi 'Manual Input' bukan 'OCR Scan'
+  var isManualEntry = false.obs;
+
   // Tampungan file foto nota dari kamera
   final ImagePicker _picker = ImagePicker();
   var selectedImageFile = Rxn<File>();
@@ -155,6 +163,20 @@ class AdminDashboardController extends GetxController {
   // --- DATA UTAMA INGREDIENTS GUDANG (REAKTIF .obs) ---
   var isLoading = false.obs;
   var ingredientsList = <Map<String, dynamic>>[].obs;
+
+  // --- 3. STATE REAKSI SATUAN PAKAI / USAGE UNITS ---
+  // Fitur ini menyelesaikan masalah: base_unit gudang (gram/ml/pcs) sering
+  // gak cocok sama satuan yang dipakai koki pas nyusun resep (siung, sdt,
+  // slice, saset, dll). Admin stok yang paling tau realita bahan itu, jadi
+  // dia yang define konversinya di sini. Nanti menumanagement.jsx (web) baca
+  // tabel `ingredient_usage_units` ini buat nampilin pilihan satuan resep
+  // yang lebih akurat, bukan cuma base_unit mentah.
+  var isViewingUsageUnitsForm = false.obs;
+  var selectedIngredientForUnits = <String, dynamic>{}.obs;
+  var usageUnitsList = <Map<String, dynamic>>[].obs;
+  var isLoadingUsageUnits = false.obs;
+  final usageUnitNameController = TextEditingController();   // mis. 'siung', 'sdt', 'slice'
+  final usageUnitGramsController = TextEditingController();  // nilai konversi ke base_unit bahan
 
   // ================= API KEY GEMINI (DIAMBIL DARI .env, JANGAN HARDCODE!) =================
   // PENTING: tambahkan package flutter_dotenv, buat file .env di root project
@@ -224,6 +246,96 @@ class AdminDashboardController extends GetxController {
     } finally {
       isLoading(false);
     }
+  }
+
+  // --- LOGIC MODUL: SATUAN PAKAI / USAGE UNITS PER BAHAN ---
+  // Dipanggil pas admin stok tap salah satu item di list inventory.
+  Future<void> openUsageUnitsSheet(Map<String, dynamic> item) async {
+    selectedIngredientForUnits.value = item;
+    isViewingUsageUnitsForm.value = true;
+    await fetchUsageUnits(item['id']);
+  }
+
+  Future<void> fetchUsageUnits(dynamic rawMaterialId) async {
+    try {
+      isLoadingUsageUnits(true);
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('ingredient_usage_units')
+          .select()
+          .eq('raw_material_id', rawMaterialId)
+          .order('created_at');
+      usageUnitsList.assignAll(List<Map<String, dynamic>>.from(response));
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal mengambil satuan pakai: $e');
+    } finally {
+      isLoadingUsageUnits(false);
+    }
+  }
+
+  // Tambah 1 satuan pakai baru untuk bahan yang lagi dibuka, mis. bahan
+  // "Bawang Putih" (base_unit gram) ditambahkan satuan "siung" = 5 gram.
+  Future<void> tambahUsageUnit() async {
+    final unitName = usageUnitNameController.text.trim();
+    final gramsText = usageUnitGramsController.text.trim().replaceAll(',', '.');
+
+    if (unitName.isEmpty || gramsText.isEmpty) {
+      Get.snackbar('Data Kurang', 'Nama satuan dan nilai konversi wajib diisi.');
+      return;
+    }
+    final grams = double.tryParse(gramsText);
+    if (grams == null || grams <= 0) {
+      Get.snackbar('Nilai Tidak Valid', 'Nilai konversi harus berupa angka lebih dari 0.');
+      return;
+    }
+
+    final rawMaterialId = selectedIngredientForUnits['id'];
+    if (rawMaterialId == null) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final ownerUserId = Get.find<SessionController>().ownerUserId.value;
+
+      await supabase.from('ingredient_usage_units').insert({
+        'owner_user_id': ownerUserId,
+        'raw_material_id': rawMaterialId,
+        'unit_name': unitName,
+        'grams_per_unit': grams,
+      });
+
+      usageUnitNameController.clear();
+      usageUnitGramsController.clear();
+      await fetchUsageUnits(rawMaterialId);
+
+      Get.snackbar(
+        'Berhasil',
+        'Satuan pakai "$unitName" ditambahkan untuk ${selectedIngredientForUnits['name']}.',
+        backgroundColor: const Color(0xFF006847),
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      // Kemungkinan error paling umum: unit_name sudah ada untuk bahan yang
+      // sama (kena unique constraint di tabel ingredient_usage_units).
+      Get.snackbar('Error', 'Gagal menyimpan satuan pakai. Mungkin nama satuan ini sudah ada untuk bahan ini: $e');
+    }
+  }
+
+  Future<void> hapusUsageUnit(dynamic usageUnitId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      await supabase.from('ingredient_usage_units').delete().eq('id', usageUnitId);
+      await fetchUsageUnits(selectedIngredientForUnits['id']);
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal menghapus satuan pakai: $e');
+    }
+  }
+
+  void tutupUsageUnitsSheet() {
+    isViewingUsageUnitsForm.value = false;
+    selectedIngredientForUnits.value = {};
+    usageUnitsList.clear();
+    usageUnitNameController.clear();
+    usageUnitGramsController.clear();
   }
 
   @override
@@ -443,6 +555,57 @@ class AdminDashboardController extends GetxController {
     }
   }
 
+  // --- LOGIC MODUL: INPUT MANUAL STOK (FR-A05 EXTENSION, TANPA NOTA/OCR) ---
+  // Dipakai saat admin restock dari pasar/toko yang tidak menerbitkan nota
+  // (mis. beli langsung di pasar tradisional). Membuka layar Data Confirmation
+  // yang SAMA persis dengan hasil scan, tapi kosong dan diisi manual satu-satu.
+  void openManualInputForm() {
+    // Bersihkan sisa item dari sesi scan sebelumnya (kalau ada) supaya tidak
+    // ketercampur dengan data manual yang baru mau diisi.
+    for (var old in scannedItems) {
+      old.dispose();
+    }
+    scannedItems.clear();
+
+    supplierController.clear();
+    notaSubtotal.value = 0.0;
+    notaDiscount.value = 0.0;
+    notaTax.value = 0.0;
+    notaGrandTotal.value = 0.0;
+
+    isManualEntry.value = true;
+    isTriggeredFromFab.value = true;
+    showReviewPage.value = true; // langsung ke form, skip layar kamera
+
+    // Kasih 1 baris kosong sebagai starting point biar admin tinggal isi
+    addManualScannedItem();
+  }
+
+  // Tambah 1 baris item kosong ke form (dipakai tombol "+ Tambah Item" manual,
+  // tapi aman juga dipanggil saat admin scan OCR mau nambah item ekstra yang
+  // kelewat/gak kefoto di nota).
+  void addManualScannedItem() {
+    scannedItems.add(ScannedItem(
+      name: '',
+      qty: '',
+      unit: 'pcs',
+      price: '',
+      contentPerPackage: '',
+      baseUnit: '',
+    ));
+  }
+
+  // Total live hasil jumlah semua baris item manual — dipakai menggantikan
+  // breakdown Sub Total/PPN/Grand Total dari OCR (yang tidak relevan untuk
+  // input manual karena memang tidak ada nota fisik yang jadi acuan).
+  double get manualGrandTotal {
+    double total = 0;
+    for (final item in scannedItems) {
+      total += double.tryParse(item.priceController.text) ?? 0.0;
+    }
+    return total;
+  }
+
   // Helper: total_price dari Gemini kadang berupa number mentah (700000),
   // kadang string berformat "Rp 700.000". Fungsi ini menormalkan ke string
   // angka polos ("700000") supaya gampang ditampilkan di TextField yang
@@ -569,7 +732,9 @@ class AdminDashboardController extends GetxController {
           await supabase.from('supply_logs').insert({
             'supplier_name': supplierName,
             'quantity_added': convertedQty, // dicatat dalam base unit (gram), konsisten dgn stok
-            'source_type': 'OCR Scan',
+            // 🆕 Beda source_type biar audit trail tahu mana yang hasil OCR nota
+            // dan mana yang input manual (restock tanpa nota, mis. dari pasar).
+            'source_type': isManualEntry.value ? 'Manual Input' : 'OCR Scan',
             'material_id': materialId,
             'user_id': ownerUserId,
             'purchase_qty': purchaseQty,
@@ -606,6 +771,7 @@ class AdminDashboardController extends GetxController {
 
       isTriggeredFromFab.value = false;
       showReviewPage.value = false;
+      isManualEntry.value = false;
       currentPageIndex.value = 0;
       fetchRawMaterials();
     } catch (e) {
@@ -762,6 +928,8 @@ class AdminDashboardController extends GetxController {
     wasteSearchController.dispose();
     adjustmentNotesController.dispose();
     supplierController.dispose();
+    usageUnitNameController.dispose();
+    usageUnitGramsController.dispose();
     for (var item in scannedItems) {
       item.dispose();
     }
