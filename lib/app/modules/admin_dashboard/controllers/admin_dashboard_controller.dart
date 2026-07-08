@@ -190,7 +190,16 @@ class AdminDashboardController extends GetxController {
     try {
       isLoading(true);
       final supabase = Supabase.instance.client;
-      final response = await supabase.from('raw_materials').select();
+      // 🔐 [BUGFIX MULTI-TENANT] Sebelumnya query ini tidak difilter sama sekali,
+      // sama seperti bug yang sudah diperbaiki di HomeController (kasir) — admin
+      // stok bisa lihat/edit stok gudang milik cafe lain. Admin stok juga login
+      // lewat tabel `staff` manual (bukan Supabase Auth), jadi scope manual
+      // pakai ownerUserId yang tersimpan di SessionController sejak login.
+      final ownerUserId = Get.find<SessionController>().ownerUserId.value;
+      final response = await supabase
+          .from('raw_materials')
+          .select()
+          .eq('user_id', ownerUserId);
 
       final List<Map<String, dynamic>> fetchedIngredients = [];
       for (var item in response) {
@@ -617,6 +626,14 @@ class AdminDashboardController extends GetxController {
   void decrementAdjustment() { if (adjustmentQty.value > 0.5) adjustmentQty.value -= 0.5; }
   void decrementAdjustmentInternal() { if (adjustmentQty.value > 0.5) adjustmentQty.value -= 0.5; }
 
+  // 💸 [FR-A07 EXTENSION] Waste Management: setiap kali admin stok melakukan
+  // penyesuaian (opname/audit fisik, kadaluwarsa, rusak, dll), sistem WAJIB
+  // melakukan 2 hal sekaligus:
+  //   1) Potong current_stock di raw_materials sebesar qty yang disesuaikan
+  //   2) Hitung nilai kerugian (qty × unit_price/harga beli terakhir) dan catat
+  //      sebagai baris baru di tabel `expenses` (kategori khusus waste), supaya
+  //      ikut memotong Net Profit di dashboard web (MainDashboard.jsx & Brainy
+  //      sudah membaca SEMUA baris `expenses` sebagai OpEx/HPP tambahan).
   Future<void> eksekusiUpdateStokOpname() async {
     try {
       final supabase = Supabase.instance.client;
@@ -624,13 +641,60 @@ class AdminDashboardController extends GetxController {
       final currentStock = selectedWasteItem['qty'];
       final newStock = currentStock - adj;
 
+      // 1️⃣ Potong stok seperti biasa
       await supabase.from('raw_materials').update({
         'current_stock': newStock
       }).eq('id', selectedWasteItem['id']);
 
+      // 2️⃣ Hitung nilai kerugian = qty disesuaikan × harga beli terakhir (unit_price)
+      final double unitPrice = (selectedWasteItem['unit_price'] as double?) ?? 0.0;
+      final double lossValue = adj * unitPrice;
+      final String itemName = selectedWasteItem['name']?.toString() ?? 'Bahan tidak diketahui';
+      final String itemUnit = selectedWasteItem['unit']?.toString() ?? '';
+      final String reason = selectedReason.value;
+      final String notes = adjustmentNotesController.text.trim();
+      final ownerUserId = Get.find<SessionController>().ownerUserId.value;
+
+      // Catat kerugian ke tabel expenses HANYA kalau nilainya > 0 (kalau harga
+      // beli belum tercatat/masih 0, tidak ada gunanya insert baris Rp 0).
+      if (lossValue > 0 && ownerUserId.isNotEmpty) {
+        try {
+          await supabase.from('expenses').insert({
+            'owner_user_id': ownerUserId,
+            'description': 'Waste/Opname: $itemName (-${adj.toStringAsFixed(2)} $itemUnit, alasan: $reason)'
+                '${notes.isNotEmpty ? ' — Catatan: $notes' : ''}',
+            'category': 'Waste Management',
+            'amount': lossValue,
+            'expense_date': DateTime.now().toIso8601String().substring(0, 10), // yyyy-MM-dd
+          });
+        } catch (expenseErr) {
+          // ⚠️ Stok SUDAH terlanjur terpotong di atas — jangan bikin seluruh aksi
+          // gagal total kalau cuma pencatatan expenses yang error. Tapi WAJIB
+          // kasih tahu admin secara eksplisit supaya tidak salah kira semuanya
+          // sukses padahal kerugian tidak tercatat di P&L.
+          Get.snackbar(
+            'Stok Terpotong, Tapi Pencatatan Kerugian Gagal',
+            'Stok berhasil disesuaikan, TAPI gagal mencatat kerugian Rp ${lossValue.toStringAsFixed(0)} ke laporan keuangan: $expenseErr',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.amber,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 8),
+          );
+          isViewingWasteForm.value = false;
+          fetchRawMaterials();
+          return;
+        }
+      }
+
       Get.snackbar(
-        'Stok Diperbarui', 'Penyesuaian stok ${selectedWasteItem['name']} berhasil disimpan.',
-        snackPosition: SnackPosition.TOP, backgroundColor: const Color(0xFF006847), colorText: Colors.white,
+        'Stok Diperbarui',
+        lossValue > 0
+            ? 'Penyesuaian stok ${selectedWasteItem['name']} berhasil disimpan. Kerugian Rp ${lossValue.toStringAsFixed(0)} otomatis tercatat sebagai OPEX (Waste Management) dan akan memotong Net Profit di dashboard.'
+            : 'Penyesuaian stok ${selectedWasteItem['name']} berhasil disimpan.',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF006847),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 6),
       );
       isViewingWasteForm.value = false;
       fetchRawMaterials();

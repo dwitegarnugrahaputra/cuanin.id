@@ -459,7 +459,7 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                     children: [
                       Obx(() => Text(controller.adjustmentQty.value.toStringAsFixed(1), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: Color(0xFF009663), height: 1))),
                       const SizedBox(height: 6),
-                      Text(item['unit'].toString().toUpperCase() == 'KG' ? 'KILOGRAMS' : 'LITERS', style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                      Text(item['unit']?.toString().toUpperCase() ?? '', style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(width: 36),

@@ -121,11 +121,23 @@ class HomeController extends GetxController {
   void subscribeToMenus() {
     isLoading(true);
     final supabase = Supabase.instance.client;
+    final session = Get.find<SessionController>();
 
+    // 🔐 [BUGFIX MULTI-TENANT] Sebelumnya query ini cuma filter `is_available`,
+    // TANPA filter kepemilikan sama sekali — akibatnya kasir dari cafe manapun
+    // bisa melihat menu milik cafe lain kalau ada lebih dari satu tenant di
+    // database yang sama. Kasir tidak pakai Supabase Auth (auth.uid() selalu
+    // null di sini), jadi kita scope manual pakai ownerUserId yang sudah
+    // tersimpan di SessionController sejak staff login.
+    //
+    // ⚠️ CATATAN: SupabaseStreamBuilder.eq() cuma boleh dipanggil SATU KALI
+    // sebagai filter utama (tidak bisa di-chain .eq().eq()) — makanya filter
+    // `is_available` dipindah ke logic Dart di _rebuildProductsFromCache(),
+    // bukan di level query stream lagi.
     _menuSubscription = supabase
         .from('menus')
         .stream(primaryKey: ['id'])
-        .eq('is_available', true)
+        .eq('user_id', session.ownerUserId.value)
         .listen((response) {
       _rawMenuRows = response;
       _rebuildProductsFromCache();
@@ -143,9 +155,14 @@ class HomeController extends GetxController {
   // "HABIS" di kasir selalu real-time — tanpa perlu refresh manual.
   void subscribeToRawMaterialStock() {
     final supabase = Supabase.instance.client;
+    final session = Get.find<SessionController>();
+    // 🔐 [BUGFIX MULTI-TENANT] Sama seperti subscribeToMenus — stok bahan baku
+    // juga wajib di-scope ke ownerUserId, supaya perhitungan "HABIS" tidak
+    // ketuker sama stok gudang milik cafe lain.
     _stockSubscription = supabase
         .from('raw_materials')
         .stream(primaryKey: ['id'])
+        .eq('user_id', session.ownerUserId.value)
         .listen((response) {
       final Map<String, double> newMap = {};
       for (var row in response) {
@@ -192,6 +209,13 @@ class HomeController extends GetxController {
   void _rebuildProductsFromCache() {
     final List<Map<String, dynamic>> fetchedProducts = [];
     for (var item in _rawMenuRows) {
+      // 🔧 [BUGFIX] Filter `is_available` dipindah ke sini (Dart-side) karena
+      // stream Supabase cuma bisa punya 1 filter utama (`user_id`, dipakai
+      // untuk isolasi tenant). Menu yang di-nonaktifkan owner tidak akan
+      // muncul di katalog kasir, persis seperti perilaku lama.
+      final bool isAvailable = item['is_available'] == true;
+      if (!isAvailable) continue;
+
       fetchedProducts.add({
         'id': item['id'],
         'name': item['menu_name'] ?? 'Unknown',
