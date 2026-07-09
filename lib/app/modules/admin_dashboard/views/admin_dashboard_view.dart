@@ -356,7 +356,17 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                         ),
                       ),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: statusInfo['bgColor'], borderRadius: BorderRadius.circular(10)), child: Text(statusInfo['text'], style: TextStyle(color: statusInfo['textColor'], fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.3))),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
+                      // 🗑️ [HAPUS BAHAN] Tombol hapus cepat kalau admin salah input
+                      // base_unit di awal (mis. pcs harusnya gram) -> hapus, lalu
+                      // input ulang lewat scan/manual dengan base_unit yang benar.
+                      GestureDetector(
+                        onTap: () => _confirmHapusBahan(context, controller, item),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          child: Icon(Icons.delete_outline_rounded, color: Colors.red[300], size: 20),
+                        ),
+                      ),
                       Icon(Icons.chevron_right_rounded, color: Colors.grey[300], size: 20),
                     ],
                   ),
@@ -989,6 +999,35 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
   }
 
   // 🆕 [SATUAN PAKAI] Trigger buka bottom sheet dari tap item inventory.
+  // 🗑️ [HAPUS BAHAN] Dialog konfirmasi sebelum benar-benar menghapus.
+  // Menghapus bahan otomatis ikut menghapus semua satuan pakai custom-nya
+  // (on delete cascade di ingredient_usage_units), jadi dialog ini
+  // mengingatkan itu supaya admin tidak kaget.
+  void _confirmHapusBahan(BuildContext context, AdminDashboardController controller, Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus Bahan?'),
+        content: Text(
+          'Bahan "${item['name']}" beserta semua satuan pakai custom-nya (kalau ada) akan dihapus permanen. Lanjutkan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              controller.hapusBahan(item['id']);
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openUsageUnitsBottomSheet(BuildContext context, AdminDashboardController controller, Map<String, dynamic> item) {
     controller.openUsageUnitsSheet(item);
     showModalBottomSheet(

@@ -248,6 +248,56 @@ class AdminDashboardController extends GetxController {
     }
   }
 
+  // 🗑️ [HAPUS BAHAN] Hapus bahan baku dari raw_materials.
+  // Dipakai sebagai jalan cepat kalau admin salah input base_unit (mis. pcs
+  // yang harusnya gram) saat scan/manual input: hapus lalu input ulang dengan
+  // base_unit yang benar, daripada bikin fitur edit base_unit yang butuh
+  // logic konversi current_stock (di luar scope saat ini).
+  //
+  // Baris ingredient_usage_units terkait ikut otomatis terhapus lewat
+  // `on delete cascade` di FK raw_material_id -> raw_materials(id), jadi
+  // tidak ada data usage unit yang jadi sampah/yatim.
+  Future<void> hapusBahan(String rawMaterialId) async {
+    try {
+      isLoading(true);
+      final supabase = Supabase.instance.client;
+      final ownerUserId = Get.find<SessionController>().ownerUserId.value;
+      // 🔐 [BUGFIX MULTI-TENANT] Filter manual owner_user_id, pola sama
+      // dengan fetchRawMaterials di atas — jangan andalkan RLS di sini.
+      //
+      // 🐛 [FIX FALSE POSITIVE] Sebelumnya tidak ada .select() di sini,
+      // jadi delete() yang di-block oleh RLS (0 baris benar-benar terhapus)
+      // tetap dianggap "Berhasil" karena Supabase tidak melempar error
+      // untuk 0 baris terhapus. Dengan .select(), kita bisa cek isi array
+      // hasil delete -> kalau kosong, berarti TIDAK ADA yang benar-benar
+      // terhapus, walau request-nya sendiri tidak error.
+      final deleted = await supabase
+          .from('raw_materials')
+          .delete()
+          .eq('id', rawMaterialId)
+          .eq('user_id', ownerUserId)
+          .select();
+
+      if (deleted.isEmpty) {
+        // Delete tidak menyentuh baris manapun -> kemungkinan besar
+        // diblok RLS (owner_user_id tidak cocok auth.uid()) atau id
+        // sudah tidak ada. Jangan update UI seolah berhasil.
+        Get.snackbar(
+          'Gagal',
+          'Bahan tidak terhapus dari database (kemungkinan diblok proteksi akses). Hubungi admin sistem.',
+        );
+        return;
+      }
+
+      ingredientsList.removeWhere((item) => item['id'] == rawMaterialId);
+      Get.snackbar('Berhasil', 'Bahan baku berhasil dihapus.');
+    } catch (e) {
+      Get.snackbar('Error', 'Gagal menghapus bahan baku: $e');
+    } finally {
+      isLoading(false);
+    }
+  }
+
   // --- LOGIC MODUL: SATUAN PAKAI / USAGE UNITS PER BAHAN ---
   // Dipanggil pas admin stok tap salah satu item di list inventory.
   Future<void> openUsageUnitsSheet(Map<String, dynamic> item) async {
