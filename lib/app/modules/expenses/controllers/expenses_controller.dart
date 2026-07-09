@@ -108,6 +108,11 @@ class ExpensesController extends GetxController {
         return;
       }
 
+      print('DEBUG Session: ${supabase.auth.currentSession}');
+      print('DEBUG Auth currentUser id: ${supabase.auth.currentUser?.id}');
+      print('DEBUG ownerUserId dari SessionController: $ownerUserId');
+      print('DEBUG staffId dari SessionController: $staffId');
+
       final inserted = await supabase
           .from('expenses')
           .insert({

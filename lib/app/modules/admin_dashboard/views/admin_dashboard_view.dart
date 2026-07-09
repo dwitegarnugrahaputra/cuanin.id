@@ -1064,50 +1064,79 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
             final baseUnit = item['unit']?.toString() ?? '-';
             final itemName = item['name']?.toString() ?? '';
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+            // 🔧 FIX overflow saat keyboard muncul:
+            // Sebelumnya list satuan pakai dibungkus `Expanded` di dalam Column
+            // yang tinggi efektifnya berkurang drastis begitu keyboard naik
+            // (viewInsets.bottom membesar → padding bottom membesar → ruang
+            // tersisa untuk Expanded jadi negatif → RenderFlex overflow di
+            // bagian form paling bawah).
+            //
+            // Solusinya: (1) list satuan pakai jadi non-flexible dengan
+            // shrinkWrap + NeverScrollableScrollPhysics, (2) SELURUH Column
+            // (title, desc, list, form) dibungkus SingleChildScrollView yang
+            // memakai `scrollController` bawaan DraggableScrollableSheet.
+            // Efeknya: kalau ruang kurang karena keyboard, konten cukup
+            // scroll ke atas — tidak ada lagi widget yang "dipaksa" fit ke
+            // ruang yang tidak cukup, jadi tidak ada overflow sama sekali.
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                    ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Satuan Pakai — $itemName',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF111827)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Satuan Pakai — $itemName',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF111827)),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                Text(
-                  'Base unit stok bahan ini: "$baseUnit". Tambahkan satuan yang beneran '
-                      'dipakai di resep (siung, sdt, sdm, slice, saset, dll) beserta konversinya '
-                      'ke $baseUnit, supaya pemotongan stok pas resep dieksekusi lebih akurat.',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
-                ),
-                const SizedBox(height: 14),
-                Expanded(
-                  child: controller.isLoadingUsageUnits.value
-                      ? const Center(child: CircularProgressIndicator(color: Color(0xFF006847)))
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Base unit stok bahan ini: "$baseUnit". Tambahkan satuan yang beneran '
+                        'dipakai di resep (siung, sdt, sdm, slice, saset, dll) beserta konversinya '
+                        'ke $baseUnit, supaya pemotongan stok pas resep dieksekusi lebih akurat.',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.4),
+                  ),
+                  const SizedBox(height: 14),
+                  // 🔧 Sebelumnya: Expanded(...) → sekarang non-flexible.
+                  // Kalau isLoading/empty, kasih tinggi minimal biar nggak
+                  // "collapse" jadi 0; kalau ada isi, shrinkWrap bikin
+                  // ListView setinggi kontennya sendiri (bisa discroll
+                  // lewat SingleChildScrollView di luar).
+                  controller.isLoadingUsageUnits.value
+                      ? const SizedBox(
+                    height: 80,
+                    child: Center(child: CircularProgressIndicator(color: Color(0xFF006847))),
+                  )
                       : controller.usageUnitsList.isEmpty
-                      ? Center(
-                    child: Text(
-                      'Belum ada satuan pakai custom untuk bahan ini.\nTambahkan lewat form di bawah.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ? SizedBox(
+                    height: 60,
+                    child: Center(
+                      child: Text(
+                        'Belum ada satuan pakai custom untuk bahan ini.\nTambahkan lewat form di bawah.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
                     ),
                   )
                       : ListView.separated(
-                    controller: scrollController,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
                     itemCount: controller.usageUnitsList.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, index) {
@@ -1126,62 +1155,62 @@ class AdminDashboardView extends GetView<AdminDashboardController> {
                       );
                     },
                   ),
-                ),
-                const Divider(height: 24),
-                const Text('TAMBAH SATUAN BARU', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: controller.usageUnitNameController,
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: 'mis. siung / sdt',
-                          isDense: true,
-                          filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  const Divider(height: 24),
+                  const Text('TAMBAH SATUAN BARU', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: controller.usageUnitNameController,
+                          style: const TextStyle(fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'mis. siung / sdt',
+                            isDense: true,
+                            filled: true,
+                            fillColor: const Color(0xFFF9FAFB),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: controller.usageUnitGramsController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: const TextStyle(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: '= ? $baseUnit',
-                          isDense: true,
-                          filled: true,
-                          fillColor: const Color(0xFFF9FAFB),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: controller.usageUnitGramsController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: const TextStyle(fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: '= ? $baseUnit',
+                            isDense: true,
+                            filled: true,
+                            fillColor: const Color(0xFFF9FAFB),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      height: 44, width: 44,
-                      child: ElevatedButton(
-                        onPressed: controller.tambahUsageUnit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF006847),
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44, width: 44,
+                        child: ElevatedButton(
+                          onPressed: controller.tambahUsageUnit,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF006847),
+                            padding: EdgeInsets.zero,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Icon(Icons.add_rounded, color: Colors.white),
                         ),
-                        child: const Icon(Icons.add_rounded, color: Colors.white),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            );
+                    ],
+                  ),
+                ],
+              ), // tutup Column
+            ); // tutup SingleChildScrollView
           }),
         );
       },
